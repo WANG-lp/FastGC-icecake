@@ -1,0 +1,13 @@
+BasedOnStyle: Google
+PointerAlignment: Right
+IndentWidth: 4
+MaxEmptyLinesToKeep: 1
+AllowShortIfStatementsOnASingleLine: false
+SpacesInContainerLiterals: true
+IndentWrappedFunctionNames: true
+KeepEmptyLinesAtTheStartOfBlocks: true
+AllowAllParametersOfDeclarationOnNextLine: true
+SpaceAfterCStyleCast: true
+TabWidth: 4
+UseTab: Never
+ColumnLimit: 120

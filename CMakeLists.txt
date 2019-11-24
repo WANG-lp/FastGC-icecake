@@ -27,7 +27,7 @@ else ()
     add_compile_options(-O2)
 endif ()
 
-add_library(icecake src/lib.cpp)
+add_subdirectory(src)
 
 if (BUILD_TEST)
     enable_testing()
