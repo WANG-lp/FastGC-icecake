@@ -1,0 +1,11 @@
+# rust
+/target
+**/*.rs.bk
+
+# idea
+*.iml
+.idea/
+
+# c++
+build/
+cmake-build-debug/
