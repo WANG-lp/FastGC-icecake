@@ -7,14 +7,22 @@ else ()
     message(STATUS "System is LITTLE_ENDIAN")
 endif ()
 find_package(Threads REQUIRED)
-
+find_package(CUDA 10.0 REQUIRED)
+include_directories(${CUDA_INCLUDE_DIRS})
 set(CPP_SRC
+        ../include/icecake_export.hpp
+        ../include/icecake_base.hpp
         icecake.cpp
+
+        )
+set(CUDA_SRC
+        cuda/cuda.cuh
+        cuda/sub.cu
         )
 
+add_library(icecake SHARED ${CPP_SRC} ${CUDA_SRC})
 
-add_library(icecake SHARED ${CPP_SRC})
-target_link_libraries(icecake Threads::Threads)
+target_link_libraries(icecake Threads::Threads ${CUDA_LIBRARIES})
 
 
 cmake_policy(SET CMP0078 NEW)
@@ -28,6 +36,6 @@ FIND_PACKAGE(Python3 COMPONENTS Interpreter Development)
 SET_PROPERTY(SOURCE python/icecake.i PROPERTY CPLUSPLUS ON)
 SET_PROPERTY(SOURCE python/icecake.i PROPERTY SWIG_FLAGS "-includeall" "-O" "-builtin")
 SET_PROPERTY(SOURCE python/icecake.i PROPERTY SWIG_FLAGS "-py3")
-swig_add_library(pyicecake TYPE SHARED LANGUAGE python SOURCES python/icecake.i ${CPP_SRC})
+swig_add_library(pyicecake TYPE SHARED LANGUAGE python SOURCES python/icecake.i)
 target_include_directories(pyicecake PRIVATE ${Python3_INCLUDE_DIRS})
-TARGET_LINK_LIBRARIES(pyicecake ${Python3_LIBRARIES} Threads::Threads)
+TARGET_LINK_LIBRARIES(pyicecake ${Python3_LIBRARIES} Threads::Threads icecake)

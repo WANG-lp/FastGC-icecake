@@ -4,7 +4,7 @@
 %}
 
 %{ 
-#include "../include/icecake.hpp"
+#include "../include/icecake_export.hpp"
 %}
 
 %include "std_vector.i"
@@ -22,4 +22,4 @@
 }
 
 
-%include "../include/icecake.hpp"
+%include "../include/icecake_export.hpp"

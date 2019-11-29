@@ -1,14 +1,12 @@
 # gtest_discover_tests is stable in cmake-3.10.3
 cmake_minimum_required(VERSION 3.10.3)
-project(icecake)
+project(icecake LANGUAGES CXX CUDA)
 
 # Adds options to the compilation of source files
 set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_C_STANDARD 11)
 
 set(CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake ${CMAKE_MODULE_PATH}) # To allow CMake to locate our Find*.cmake files
-
-add_compile_options(-Wall -Wno-unused-variable -Wpointer-arith -Werror)
 
 if (CMAKE_CXX_COMPILER_VERSION VERSION_GREATER 7.1)
     # https://github.com/facebook/rocksdb/pull/2699
@@ -26,6 +24,8 @@ if (DEBUG_MODE)
 else ()
     add_compile_options(-O2)
 endif ()
+
+include_directories(3rd-deps/spdlog/include)
 
 add_subdirectory(src)
 
