@@ -1,3 +1,6 @@
 [submodule "3rd-deps/spdlog"]
 	path = 3rd-deps/spdlog
 	url = https://github.com/gabime/spdlog.git
+[submodule "3rd-deps/parallel-hashmap"]
+	path = 3rd-deps/parallel-hashmap
+	url = https://github.com/greg7mdp/parallel-hashmap.git
