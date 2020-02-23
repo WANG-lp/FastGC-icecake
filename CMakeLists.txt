@@ -26,7 +26,8 @@ else ()
 endif ()
 
 include_directories(3rd-deps/spdlog/include)
-
+include_directories(3rd-deps/parallel-hashmap)
+include_directories(3rd-deps/DALI)
 add_subdirectory(src)
 
 if (BUILD_TEST)

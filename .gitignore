@@ -1,3 +1,6 @@
+#vscode
+.vscode
+
 # rust
 /target
 **/*.rs.bk
