@@ -4,6 +4,7 @@
 #include <atomic>
 #include <string>
 #include <vector>
+#include "dlpack.h"
 
 using std::string;
 using std::vector;
@@ -35,8 +36,10 @@ class GPUCache {
     ~GPUCache();
 
     void write_to_device_memory(const string& fid, const char* blockRAW, size_t length, int device);
-    char* read_from_device_memory(const string& fid, size_t *length);
+    char* read_from_device_memory(const string& fid, size_t* length);
     char* read_from_device_memory(const string& fid);
+    bool put_dltensor_to_device_memory(const string& fid, DLManagedTensor* dltensor);
+    DLManagedTensor* get_dltensor_from_device(const string& fid, int device);
     std::pair<size_t, size_t> get_pos(const string& fid);
 
    private:
@@ -52,4 +55,5 @@ class GPUCache {
 
     bool check_CUDA_device_props();
 };
+size_t calc_dltensor_size(const DLTensor* t);
 }  // namespace icecake

@@ -3,6 +3,7 @@
 #include <string>
 #include <vector>
 #include "cuda/cuda.cuh"
+#include "utils/int2bytes.h"
 using std::string;
 using std::vector;
 int sub(int a, int b) {
@@ -94,14 +95,111 @@ tensor::~tensor() {
 }  // namespace icecake
 
 namespace icecake {
+size_t calc_dltensor_size(const DLTensor* t) {
+    size_t size = 1;
+    for (size_t i = 0; i < t->ndim; ++i) {
+        size *= t->shape[i];
+    }
+    size *= (t->dtype.bits * t->dtype.lanes + 7) / 8;
+    return size;
+}
+void dltensor_deleter(DLManagedTensor* tensor) {
+    if (tensor->dl_tensor.shape) {
+        free(tensor->dl_tensor.shape);
+    }
+    if (tensor->dl_tensor.strides) {
+        free(tensor->dl_tensor.strides);
+    }
+    /****NOTICE***
+    we do NOT need to delete underlying memory here, since we use a global memory
+    block to store all tensor data in GPU
+    //free(tensor->dl_tensor.data);
+    ***END***/
+    free(tensor);
+}
+inline vector<char> serialize_dl_tensor(const DLTensor* t) {
+    vector<char> tmp_buff;
+    size_t data_len = calc_dltensor_size(t);
+    // DLDataType.code(uint8), DLDataType.bits(uint8), DLDataType.lanes(uint16), ndim(int),
+    // shape[0](int64),shape[1]...shape[n], has_strides(char), strides[0](uint64),strides[1]...strides[n]
+    size_t buff_len = sizeof(uint8_t) + sizeof(uint8_t) + sizeof(uint16_t) + sizeof(int) + t->ndim * sizeof(int64_t) +
+                      sizeof(char) + data_len;
+    if (t->strides != NULL) {
+        buff_len += t->ndim * sizeof(int64_t);
+    }
+    tmp_buff.resize(buff_len);
+    unsigned char* data = (unsigned char*) tmp_buff.data();
+    data[0] = t->dtype.code;
+    data += 1;
+    data[0] = t->dtype.bits;
+    data += 1;
+    uint16_to_bytes(t->dtype.lanes, data);
+    data += sizeof(uint16_t);
+    uint32_to_bytes(t->ndim, data);
+    data += sizeof(int);
+    for (size_t i = 0; i < t->ndim; i++) {
+        uint64_to_bytes(t->shape[i], data);
+        data += sizeof(int64_t);
+    }
+    if (t->strides != NULL) {
+        data[0] = 1;
+        data += 1;
+        for (size_t i = 0; i < t->ndim; i++) {
+            uint64_to_bytes(t->strides[i], data);
+            data += sizeof(int64_t);
+        }
+    } else {
+        data[0] = 0;
+        data += 1;
+    }
+    memcpy(data, (char*) t->data + t->byte_offset, data_len);
+
+    return tmp_buff;
+}
+
+inline DLTensor deserialize_dl_tensor(const char* data) {
+    if (data == nullptr) {
+        spdlog::error("cannot deserialize nullptr to tensor");
+        exit(1);
+    }
+    DLTensor t;
+    size_t offset = 0;
+    t.dtype.code = data[offset];
+    offset += 1;
+    t.dtype.bits = data[offset];
+    offset += 1;
+    t.dtype.lanes = bytes_to_uint16((unsigned char*) data + offset);
+    offset += sizeof(uint16_t);
+    t.ndim = bytes_to_uint32((unsigned char*) data + offset);
+    offset += sizeof(int);
+    t.shape = (int64_t*) malloc(sizeof(int64_t) * t.ndim);
+    for (size_t i = 0; i < t.ndim; i++) {
+        t.shape[i] = bytes_to_uint64((unsigned char*) data + offset);
+        offset += sizeof(int64_t);
+    }
+    if (data[offset] != 0) {
+        offset += 1;
+        t.strides = (int64_t*) malloc(sizeof(int64_t) * t.ndim);
+        for (size_t i = 0; i < t.ndim; i++) {
+            t.strides[i] = bytes_to_uint64((unsigned char*) data + offset);
+            offset += sizeof(int64_t);
+        }
+    } else {
+        offset += 1;
+        t.strides = NULL;
+    }
+    t.data = (void*) (data);
+    t.byte_offset = 0;
+    return t;
+}
 GPUCache::GPUCache(size_t alloc_size) : data_pos(0) {
     if (!check_CUDA_device_props()) {
         spdlog::error("Device does not meet the requirement");
         exit(1);
     }
-    spdlog::info("Total CUDA memory size: {}, which is {}GB", total_cuda_memory,
+    spdlog::info("Total CUDA memory size: {}, which is {:03.3f}GB", total_cuda_memory,
                  total_cuda_memory * 1.0f / (1024.0 * 1024 * 1024));
-    spdlog::info("Total CUDA free memory size: {}, which is {}GB", total_cuda_free_memory,
+    spdlog::info("Total CUDA free memory size: {}, which is {:03.3f}GB", total_cuda_free_memory,
                  total_cuda_free_memory * 1.0f / (1024.0 * 1024 * 1024));
     if (alloc_size > total_cuda_free_memory) {
         spdlog::error("Requested cache size exceed free GPU memory size");
@@ -172,6 +270,25 @@ char* GPUCache::read_from_device_memory(const string& fid, size_t* length) {
 char* GPUCache::read_from_device_memory(const string& fid) {
     size_t l;
     return read_from_device_memory(fid, &l);
+}
+
+bool GPUCache::put_dltensor_to_device_memory(const string& fid, DLManagedTensor* dltensor) {
+    auto tmp_buff = serialize_dl_tensor(&(dltensor->dl_tensor));
+    write_to_device_memory(fid, tmp_buff.data(), tmp_buff.size(), 0);
+    if (dltensor->deleter != NULL) {
+        dltensor->deleter(dltensor);
+    }
+    return true;
+}
+
+DLManagedTensor* GPUCache::get_dltensor_from_device(const string& fid, int device) {
+    DLManagedTensor* dlm_tensor = (DLManagedTensor*) malloc(sizeof(DLManagedTensor));
+    dlm_tensor->dl_tensor = deserialize_dl_tensor(read_from_device_memory(fid));
+    dlm_tensor->dl_tensor.ctx.device_type = DLDeviceType::kDLGPU;
+    dlm_tensor->dl_tensor.ctx.device_id = device;  // let cuda driver to copy memory
+    dlm_tensor->manager_ctx = NULL;
+    dlm_tensor->deleter = dltensor_deleter;
+    return dlm_tensor;
 }
 
 std::pair<size_t, size_t> GPUCache::get_pos(const string& fid) {

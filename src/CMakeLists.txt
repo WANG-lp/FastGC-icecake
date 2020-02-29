@@ -12,6 +12,8 @@ include_directories(${CUDA_INCLUDE_DIRS})
 set(CPP_SRC
         ../include/icecake.hpp
         ../include/icecake_base.hpp
+        utils/int2bytes.h
+        utils/int2bytes.cpp
         icecake.cpp
 
         )
