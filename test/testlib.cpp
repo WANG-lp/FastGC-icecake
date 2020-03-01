@@ -48,6 +48,8 @@ TEST(GPUCache, DLM_Tensor) {
 
     EXPECT_EQ(cmp_dlm_tensor(dlm_tensor, dlm_tensor2), 0);
 
-    dlm_tensor2->deleter(dlm_tensor2);
+    if (dlm_tensor2->deleter != nullptr) {
+        dlm_tensor2->deleter(dlm_tensor2);
+    }
     dltensor_deleter_for_test(dlm_tensor);
 }

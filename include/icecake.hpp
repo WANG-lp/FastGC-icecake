@@ -1,3 +1,4 @@
+
 #pragma once
 #include <parallel_hashmap/phmap.h>
 #include <spdlog/spdlog.h>
@@ -12,6 +13,10 @@ using std::vector;
 int sub(int a, int b);
 std::string csayhello(const std::string& str);
 int sub_device(int a, int b);
+
+namespace pybind11 {
+class capsule;
+}
 
 namespace icecake {
 class tensor {
@@ -41,6 +46,9 @@ class GPUCache {
     bool put_dltensor_to_device_memory(const string& fid, DLManagedTensor* dltensor);
     DLManagedTensor* get_dltensor_from_device(const string& fid, int device);
     std::pair<size_t, size_t> get_pos(const string& fid);
+
+    bool put_dltensor(const string& fid, void* capsule);
+    pybind11::capsule get_dltensor(const string& fid, int device);
 
    private:
     size_t data_size = 0;

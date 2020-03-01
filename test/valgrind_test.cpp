@@ -10,6 +10,8 @@ int main(int argc, char** argv) {
 
     auto dlm_tensor2 = gcache.get_dltensor_from_device("tensor1", 0);
 
-    dlm_tensor2->deleter(dlm_tensor2);
+    if (dlm_tensor2->deleter != NULL) {
+        dlm_tensor2->deleter(dlm_tensor2);
+    }
     return 0;
 }

@@ -1,3 +1,5 @@
+
+
 #include "../include/icecake.hpp"
 #include <cuda_runtime.h>
 #include <string>
@@ -104,17 +106,17 @@ size_t calc_dltensor_size(const DLTensor* t) {
     return size;
 }
 void dltensor_deleter(DLManagedTensor* tensor) {
-    if (tensor->dl_tensor.shape) {
-        free(tensor->dl_tensor.shape);
-    }
-    if (tensor->dl_tensor.strides) {
-        free(tensor->dl_tensor.strides);
-    }
     /****NOTICE***
-    we do NOT need to delete underlying memory here, since we use a global memory
-    block to store all tensor data in GPU
-    //free(tensor->dl_tensor.data);
-    ***END***/
+     * we do NOT need to delete underlying memory here, since we use a global device memory
+     * block to store all tensor data in GPU
+   // if (tensor->dl_tensor.shape) {
+   //     free(tensor->dl_tensor.shape);
+   // }
+   // if (tensor->dl_tensor.strides) {
+   //     free(tensor->dl_tensor.strides);
+   // }
+   //free(tensor->dl_tensor.data);
+   ***END***/
     free(tensor);
 }
 inline vector<char> serialize_dl_tensor(const DLTensor* t) {
@@ -130,13 +132,18 @@ inline vector<char> serialize_dl_tensor(const DLTensor* t) {
     tmp_buff.resize(buff_len);
     unsigned char* data = (unsigned char*) tmp_buff.data();
     data[0] = t->dtype.code;
+    // spdlog::info("DLContext.DLDeviceType: {}", t->ctx.device_type);
+    // spdlog::info("DLContext.device_id: {}", t->ctx.device_id);
+
     data += 1;
     data[0] = t->dtype.bits;
     data += 1;
+
     uint16_to_bytes(t->dtype.lanes, data);
     data += sizeof(uint16_t);
     uint32_to_bytes(t->ndim, data);
     data += sizeof(int);
+
     for (size_t i = 0; i < t->ndim; i++) {
         uint64_to_bytes(t->shape[i], data);
         data += sizeof(int64_t);
@@ -152,7 +159,15 @@ inline vector<char> serialize_dl_tensor(const DLTensor* t) {
         data[0] = 0;
         data += 1;
     }
-    memcpy(data, (char*) t->data + t->byte_offset, data_len);
+
+    if (t->ctx.device_type == DLDeviceType::kDLGPU) {
+        cudaMemcpy(data, (char*) t->data + t->byte_offset, data_len, cudaMemcpyDefault);
+    } else if (t->ctx.device_type == DLDeviceType::kDLCPU) {
+        memcpy(data, (char*) t->data + t->byte_offset, data_len);
+    } else {
+        spdlog::error("Unsupported DLDeviceType {}", t->ctx.device_type);
+        exit(1);
+    }
 
     return tmp_buff;
 }
@@ -172,23 +187,17 @@ inline DLTensor deserialize_dl_tensor(const char* data) {
     offset += sizeof(uint16_t);
     t.ndim = bytes_to_uint32((unsigned char*) data + offset);
     offset += sizeof(int);
-    t.shape = (int64_t*) malloc(sizeof(int64_t) * t.ndim);
-    for (size_t i = 0; i < t.ndim; i++) {
-        t.shape[i] = bytes_to_uint64((unsigned char*) data + offset);
-        offset += sizeof(int64_t);
-    }
+    t.shape = (int64_t*) ((char*) data + offset);
+    offset += sizeof(int64_t) * t.ndim;
     if (data[offset] != 0) {
         offset += 1;
-        t.strides = (int64_t*) malloc(sizeof(int64_t) * t.ndim);
-        for (size_t i = 0; i < t.ndim; i++) {
-            t.strides[i] = bytes_to_uint64((unsigned char*) data + offset);
-            offset += sizeof(int64_t);
-        }
+        t.strides = (int64_t*) ((char*) data + offset);
+        offset += sizeof(int64_t) * t.ndim;
     } else {
         offset += 1;
         t.strides = NULL;
     }
-    t.data = (void*) (data);
+    t.data = (void*) ((char*) data + offset);
     t.byte_offset = 0;
     return t;
 }
@@ -286,8 +295,9 @@ DLManagedTensor* GPUCache::get_dltensor_from_device(const string& fid, int devic
     dlm_tensor->dl_tensor = deserialize_dl_tensor(read_from_device_memory(fid));
     dlm_tensor->dl_tensor.ctx.device_type = DLDeviceType::kDLGPU;
     dlm_tensor->dl_tensor.ctx.device_id = device;  // let cuda driver to copy memory
-    dlm_tensor->manager_ctx = NULL;
+    dlm_tensor->manager_ctx = this;
     dlm_tensor->deleter = dltensor_deleter;
+    // dlm_tensor->deleter = NULL;
     return dlm_tensor;
 }
 
