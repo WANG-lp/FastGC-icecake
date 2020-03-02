@@ -299,6 +299,7 @@ DLManagedTensor* GPUCache::get_dltensor_from_device(const string& fid, int devic
     dlm_tensor->dl_tensor.ctx.device_id = device;  // let cuda driver to copy memory
     dlm_tensor->manager_ctx = this;
     dlm_tensor->deleter = dltensor_deleter;
+    // dlm_tensor->manager_ctx = NULL;
     // dlm_tensor->deleter = NULL;
     return dlm_tensor;
 }

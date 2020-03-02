@@ -16,7 +16,8 @@ build/
 cmake-build-debug/
 *.so
 
-# python dist
+# python
+*/.ipynb_checkpoints/
 python/build
 python/dist
 python/pyicecake.egg-info/
