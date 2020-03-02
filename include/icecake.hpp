@@ -47,7 +47,7 @@ class GPUCache {
     DLManagedTensor* get_dltensor_from_device(const string& fid, int device);
     std::pair<size_t, size_t> get_pos(const string& fid);
 
-    bool put_dltensor(const string& fid, void* capsule);
+    bool put_dltensor(const string& fid, pybind11::capsule capsule);
     pybind11::capsule get_dltensor(const string& fid, int device);
 
    private:
@@ -64,4 +64,5 @@ class GPUCache {
     bool check_CUDA_device_props();
 };
 size_t calc_dltensor_size(const DLTensor* t);
+void dltensor_deleter(DLManagedTensor* tensor);
 }  // namespace icecake

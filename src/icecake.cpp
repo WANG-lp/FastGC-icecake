@@ -117,7 +117,9 @@ void dltensor_deleter(DLManagedTensor* tensor) {
    // }
    //free(tensor->dl_tensor.data);
    ***END***/
-    free(tensor);
+    if (tensor) {
+        free(tensor);
+    }
 }
 inline vector<char> serialize_dl_tensor(const DLTensor* t) {
     vector<char> tmp_buff;
