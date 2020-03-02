@@ -11,5 +11,12 @@
 .idea/
 
 # c++
+_build/
 build/
 cmake-build-debug/
+*.so
+
+# python dist
+python/build
+python/dist
+python/pyicecake.egg-info/

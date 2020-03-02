@@ -1,0 +1,2 @@
+include pyicecake/lib/*.so
+recursive-include pyicecake *
