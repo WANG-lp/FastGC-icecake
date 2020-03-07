@@ -49,6 +49,45 @@ bool GPUCache::put_numpy_array(const string& fid, py::array narray) {
     dlm_tensor.dl_tensor.strides = (int64_t*) narray.strides();
     return put_dltensor_to_device_memory(fid, &dlm_tensor);
 }
+py::array GPUCache::get_numpy_array(const string& fid) {
+    auto cap = get_dltensor_from_device(fid, 0);
+    std::vector<ssize_t> shapes;
+    std::vector<ssize_t> strides;
+    for (int i = 0; i < cap->dl_tensor.ndim; i++) {
+        shapes.push_back(cap->dl_tensor.shape[i]);
+        strides.push_back(cap->dl_tensor.strides[i]);
+    }
+    void* data = cap->dl_tensor.data;
+    py::array ret;
+    cap->deleter(cap);
+    if (cap->dl_tensor.dtype.code == DLDataTypeCode::kDLBfloat && cap->dl_tensor.dtype.bits == 16) {
+        ret = py::array(py::dtype("float16"), shapes, strides, data);
+    } else if (cap->dl_tensor.dtype.code == DLDataTypeCode::kDLFloat && cap->dl_tensor.dtype.bits == 32) {
+        return py::array(py::dtype("float32"), shapes, strides, data);
+    } else if (cap->dl_tensor.dtype.code == DLDataTypeCode::kDLInt) {
+        if (cap->dl_tensor.dtype.bits == 8) {
+            return py::array(py::dtype("int8"), shapes, strides, data);
+        } else if (cap->dl_tensor.dtype.bits == 16) {
+            return py::array(py::dtype("int16"), shapes, strides, data);
+        } else if (cap->dl_tensor.dtype.bits == 32) {
+            return py::array(py::dtype("int32"), shapes, strides, data);
+        } else if (cap->dl_tensor.dtype.bits == 64) {
+            return py::array(py::dtype("int64"), shapes, strides, data);
+        }
+    } else if (cap->dl_tensor.dtype.code == DLDataTypeCode::kDLUInt) {
+        if (cap->dl_tensor.dtype.bits == 8) {
+            return py::array(py::dtype("uint8"), shapes, strides, data);
+        } else if (cap->dl_tensor.dtype.bits == 16) {
+            return py::array(py::dtype("uint16"), shapes, strides, data);
+        } else if (cap->dl_tensor.dtype.bits == 32) {
+            return py::array(py::dtype("uint32"), shapes, strides, data);
+        } else if (cap->dl_tensor.dtype.bits == 64) {
+            return py::array(py::dtype("uint64"), shapes, strides, data);
+        }
+    }
+    spdlog::error("Incorrect dtype");
+    return ret;
+}
 
 bool GPUCache::put_dltensor(const string& fid, py::capsule capsule) {
     if (strcmp(capsule.name(), DLTENSOR_NAME) != 0) {
@@ -72,6 +111,7 @@ PYBIND11_MODULE(pyicecake, m) {
         .def(py::init<size_t>())
         .def("put_numpy_array", &GPUCache::put_numpy_array, "Put a Numpy Array to device memory", "tensor_name"_a,
              "narray"_a)
+        .def("get_numpy_array", &GPUCache::get_numpy_array, "Get a Numpy Array from device memory", "tensor_name"_a)
         .def("put_dltensor", &GPUCache::put_dltensor, "Put a DLManagedTensor to device memory", "tensor_name"_a,
              "tensor"_a)
         .def("get_dltensor", &GPUCache::get_dltensor, "Get a DLManagedTensor from device memory", "tensor_name"_a,

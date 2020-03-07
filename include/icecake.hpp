@@ -47,8 +47,7 @@ class GPUCache {
     GPUCache(size_t alloc_size);
     ~GPUCache();
 
-    void write_to_device_memory(const string& fid, const char* meta, size_t meta_length, const char* blockRAW,
-                                size_t length, int device);
+    void write_to_device_memory(const string& fid, const char* meta, size_t meta_length, const char* blockRAW, size_t length, int device);
     char* read_from_device_memory(const string& fid, size_t* length);
     char* read_from_device_memory(const string& fid);
     bool put_dltensor_to_device_memory(const string& fid, DLManagedTensor* dltensor);
@@ -56,6 +55,7 @@ class GPUCache {
     std::pair<size_t, size_t> get_pos(const string& fid);
 
     bool put_numpy_array(const string& fid, pybind11::array narray);
+    pybind11::array get_numpy_array(const string& fid);
     bool put_dltensor(const string& fid, pybind11::capsule capsule);
     pybind11::capsule get_dltensor(const string& fid, int device);
 
