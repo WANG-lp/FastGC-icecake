@@ -123,11 +123,10 @@ void dltensor_deleter(DLManagedTensor* tensor) {
 }
 inline vector<char> serialize_dl_tensor(const DLTensor* t) {
     vector<char> tmp_buff;
-    size_t data_len = calc_dltensor_size(t);
     // DLDataType.code(uint8), DLDataType.bits(uint8), DLDataType.lanes(uint16), ndim(int),
     // shape[0](int64),shape[1]...shape[n], has_strides(char), strides[0](uint64),strides[1]...strides[n]
-    size_t buff_len = sizeof(uint8_t) + sizeof(uint8_t) + sizeof(uint16_t) + sizeof(int) + t->ndim * sizeof(int64_t) +
-                      sizeof(char) + data_len;
+    size_t buff_len =
+        sizeof(uint8_t) + sizeof(uint8_t) + sizeof(uint16_t) + sizeof(int) + t->ndim * sizeof(int64_t) + sizeof(char);
     if (t->strides != NULL) {
         buff_len += t->ndim * sizeof(int64_t);
     }
@@ -162,15 +161,10 @@ inline vector<char> serialize_dl_tensor(const DLTensor* t) {
         data += 1;
     }
 
-    if (t->ctx.device_type == DLDeviceType::kDLGPU) {
-        cudaMemcpy(data, (char*) t->data + t->byte_offset, data_len, cudaMemcpyDefault);
-    } else if (t->ctx.device_type == DLDeviceType::kDLCPU) {
-        memcpy(data, (char*) t->data + t->byte_offset, data_len);
-    } else {
+    if (!(t->ctx.device_type == DLDeviceType::kDLGPU || t->ctx.device_type == DLDeviceType::kDLCPU)) {
         spdlog::error("Unsupported DLDeviceType {}", t->ctx.device_type);
         exit(1);
     }
-
     return tmp_buff;
 }
 
@@ -208,6 +202,9 @@ GPUCache::GPUCache(size_t alloc_size) : data_pos(0) {
         spdlog::error("Device does not meet the requirement");
         exit(1);
     }
+    stat.origin_size = 0;
+    stat.total_read = 0;
+    stat.total_write = 0;
     spdlog::info("Total CUDA memory size: {}, which is {:03.3f}GB", total_cuda_memory,
                  total_cuda_memory * 1.0f / (1024.0 * 1024 * 1024));
     spdlog::info("Total CUDA free memory size: {}, which is {:03.3f}GB", total_cuda_free_memory,
@@ -257,15 +254,19 @@ bool GPUCache::check_CUDA_device_props() {
     cudaSetDevice(0);
     return true;
 }
-void GPUCache::write_to_device_memory(const string& fid, const char* blockRAW, size_t length, int device) {
-    size_t old_size = data_pos.fetch_add(length);
+void GPUCache::write_to_device_memory(const string& fid, const char* meta, size_t meta_length, const char* blockRAW,
+                                      size_t length, int device) {
+    size_t old_size = data_pos.fetch_add(meta_length + length);
     if (data_pos.load() > total_cuda_free_memory) {
         spdlog::error("exceed device free memory");
     }
-    cudaMemcpy(data_ptr + old_size, blockRAW, length, cudaMemcpyDefault);
-    cudaMemPrefetchAsync(data_ptr + old_size, length, device);  // migrating data to a GPU memory
+    if (meta_length > 0) {
+        cudaMemcpy(data_ptr + old_size, meta, meta_length, cudaMemcpyDefault);
+    }
+    cudaMemcpy(data_ptr + old_size + meta_length, blockRAW, length, cudaMemcpyDefault);
+    cudaMemPrefetchAsync(data_ptr + old_size, meta_length + length, device);  // migrating data to a GPU memory
 
-    dict[fid] = {old_size, length};
+    dict[fid] = {old_size, meta_length + length};
 }
 
 char* GPUCache::read_from_device_memory(const string& fid, size_t* length) {
@@ -284,9 +285,12 @@ char* GPUCache::read_from_device_memory(const string& fid) {
 }
 
 bool GPUCache::put_dltensor_to_device_memory(const string& fid, DLManagedTensor* dltensor) {
-    auto tmp_buff = serialize_dl_tensor(&(dltensor->dl_tensor));
-    write_to_device_memory(fid, tmp_buff.data(), tmp_buff.size(), 0);
-    if (dltensor->deleter != NULL) {
+    size_t data_len = calc_dltensor_size(&(dltensor->dl_tensor));
+    auto tmp_buff_head = serialize_dl_tensor(&(dltensor->dl_tensor));
+
+    write_to_device_memory(fid, tmp_buff_head.data(), tmp_buff_head.size(), (const char*) (dltensor->dl_tensor.data),
+                           data_len, 0);
+    if (dltensor->deleter != nullptr) {
         dltensor->deleter(dltensor);
     }
     return true;
@@ -296,7 +300,9 @@ DLManagedTensor* GPUCache::get_dltensor_from_device(const string& fid, int devic
     DLManagedTensor* dlm_tensor = (DLManagedTensor*) malloc(sizeof(DLManagedTensor));
     dlm_tensor->dl_tensor = deserialize_dl_tensor(read_from_device_memory(fid));
     dlm_tensor->dl_tensor.ctx.device_type = DLDeviceType::kDLGPU;
-    dlm_tensor->dl_tensor.ctx.device_id = device;  // let cuda driver to copy memory
+    // migrating data to device
+    cudaMemPrefetchAsync(dlm_tensor->dl_tensor.data, calc_dltensor_size(&(dlm_tensor->dl_tensor)), device);
+    dlm_tensor->dl_tensor.ctx.device_id = device;
     dlm_tensor->manager_ctx = this;
     dlm_tensor->deleter = dltensor_deleter;
     // dlm_tensor->manager_ctx = NULL;

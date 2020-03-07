@@ -29,9 +29,9 @@ TEST(GPUCache, write_to_device_memory) {
     icecake::GPUCache gcache(60L * 1024 * 1024 * 1024);
     string str = "hello,world!";
     string str2 = "little dog";
-    gcache.write_to_device_memory("block1", str.data(), str.size(), 0);
+    gcache.write_to_device_memory("block1", nullptr, 0, str.data(), str.size(), 0);
     if (gcache.total_cuda_device > 1) {
-        gcache.write_to_device_memory("block2", str2.data(), str2.size(), 1);
+        gcache.write_to_device_memory("block2", nullptr, 0, str2.data(), str2.size(), 1);
     }
     EXPECT_EQ(memcmp(gcache.read_from_device_memory("block1"), str.data(), str.size()), 0);
     EXPECT_EQ(memcmp(gcache.read_from_device_memory("block2"), str2.data(), str2.size()), 0);
