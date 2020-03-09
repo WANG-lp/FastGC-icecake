@@ -51,10 +51,10 @@ namespace icecake {
 template <>
 void DaliIcecake<::dali::CPUBackend>::RunImpl(::dali::workspace_t<::dali::CPUBackend> &ws) {
     auto &output = ws.OutputRef<::dali::CPUBackend>(0);
-    GPUCache gc(4l * 1024 * 1024 * 1024);
-    gc.load_dltensor_from_file("/tmp/dog_1.tensor");
+    GPUCache *gc = GC;
+    // gc->load_dltensor_from_file("/tmp/dog_1.tensor");
 
-    auto dlm_tensor = gc.get_dltensor_from_device("dog/dog_1.jpg", 0);
+    auto dlm_tensor = gc->get_dltensor_from_device("dog/dog_1.jpg", 0);
     output.set_type(::dali::TypeTable::GetTypeInfo(DLToDALIType(dlm_tensor->dl_tensor.dtype)));
     std::vector<int64_t> shape;
     for (int i = 0; i < dlm_tensor->dl_tensor.ndim; i++) {
@@ -66,14 +66,21 @@ void DaliIcecake<::dali::CPUBackend>::RunImpl(::dali::workspace_t<::dali::CPUBac
         list_shape.set_tensor_shape(i, ::dali::make_span(dlm_tensor->dl_tensor.shape, dlm_tensor->dl_tensor.ndim));
     }
     output.Resize(list_shape);
+    auto &thread_pool = ws.GetThreadPool();
     for (int i = 0; i < batch_size_; i++) {
-        auto dlm_tensor = gc.get_dltensor_from_device("dog/dog_1.jpg", 0);
-        CopyDlTensor<::dali::CPUBackend>(output[i].raw_mutable_data(), dlm_tensor, 0);
+        thread_pool.DoWorkWithID(
+            [&, i](int) { CopyDlTensor<::dali::CPUBackend>(output[i].raw_mutable_data(), dlm_tensor, 0); });
     }
+    thread_pool.WaitForWork();
 }
 
 }  // namespace icecake
 
 DALI_REGISTER_OPERATOR(DaliIcecake, ::icecake::DaliIcecake<::dali::CPUBackend>, ::dali::CPU);
 
-DALI_SCHEMA(DaliIcecake).DocStr("Make a copy of the input tensor").NumInput(0).NumOutput(1).NoPrune();
+DALI_SCHEMA(DaliIcecake)
+    .AddArg("GPUCacheObjAddr", R"code(GPUCache Python Object)code", ::dali::DALIDataType::DALI_INT64)
+    .DocStr("Make a copy of the input tensor")
+    .NumInput(0)
+    .NumOutput(1)
+    .NoPrune();

@@ -2,11 +2,11 @@
 
 #include "../include/icecake.hpp"
 #include <cuda_runtime.h>
+#include <spdlog/spdlog.h>
 #include <string>
 #include <vector>
 #include "cuda/cuda.cuh"
 #include "utils/int2bytes.h"
-#include <spdlog/spdlog.h>
 
 namespace icecake {
 size_t calc_dltensor_size(const DLTensor* t) {

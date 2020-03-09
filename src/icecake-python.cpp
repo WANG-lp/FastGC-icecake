@@ -1,8 +1,8 @@
 #include <pybind11/numpy.h>
 #include <pybind11/pybind11.h>
-#include <iostream>
-#include <fstream>
 #include <spdlog/spdlog.h>
+#include <fstream>
+#include <iostream>
 #include "../include/icecake.hpp"
 #include "utils/chromiumbase64.h"
 
@@ -107,9 +107,9 @@ py::capsule GPUCache::get_dltensor(const string& fid, int device) {
     return py::capsule(cap, "dltensor", &DLM_tensor_capsule_destructor);
 }
 
-void GPUCache::save_dltensor_to_file(const string& fid, const string& fname){
+void GPUCache::save_dltensor_to_file(const string& fid, const string& fname) {
     auto cap = get_dltensor_from_device(fid, 0);
-    if(cap == nullptr){
+    if (cap == nullptr) {
         spdlog::error("cannot find {} dltensor", fid);
         return;
     }
@@ -117,25 +117,25 @@ void GPUCache::save_dltensor_to_file(const string& fid, const string& fname){
     std::ofstream ofile(fname, std::ios::out | std::ios::binary);
     ofile << fid << std::endl;
     std::vector<char> data_buff = serialize_dl_tensor(&tensor);
-    for(int i = 0 ; i < calc_dltensor_size(&tensor); i++){
-        data_buff.push_back(((char*)tensor.data)[i]);
+    for (int i = 0; i < calc_dltensor_size(&tensor); i++) {
+        data_buff.push_back(((char*) tensor.data)[i]);
     }
     std::vector<char> base64_buff;
 
-    base64_buff.resize(data_buff.size() * 2); // 2 times length is safe
-    size_t len = chromium_base64_encode(base64_buff.data(), (const char*)data_buff.data(), data_buff.size());
-    base64_buff.resize(len);//shrink
+    base64_buff.resize(data_buff.size() * 2);  // 2 times length is safe
+    size_t len = chromium_base64_encode(base64_buff.data(), (const char*) data_buff.data(), data_buff.size());
+    base64_buff.resize(len);  // shrink
     ofile << std::string(base64_buff.begin(), base64_buff.end()) << std::endl;
     ofile.close();
 }
-void GPUCache::load_dltensor_from_file(const string& fname){
+void GPUCache::load_dltensor_from_file(const string& fname) {
     std::ifstream ifile(fname, std::ios::in | std::ios::binary);
-    if (!ifile.good()){
+    if (!ifile.good()) {
         spdlog::error("cannot open file {}", fname);
         return;
     }
     std::string tname;
-    DLManagedTensor *dlm_tensor = (DLManagedTensor*)malloc(sizeof(DLManagedTensor));
+    DLManagedTensor* dlm_tensor = (DLManagedTensor*) malloc(sizeof(DLManagedTensor));
     ifile >> tname;
     std::string data_str;
     ifile >> data_str;
@@ -149,6 +149,10 @@ void GPUCache::load_dltensor_from_file(const string& fname){
     put_dltensor_to_device_memory(tname, dlm_tensor);
     free(dlm_tensor);
 }
+size_t GPUCache::get_self_pointer_addr() {
+    void* addr = this;
+    return reinterpret_cast<std::uintptr_t>(addr);
+}
 
 }  // namespace icecake
 
@@ -157,6 +161,7 @@ PYBIND11_MODULE(pyicecake, m) {
     m.def("add", &add, "A function which adds two numbers");
     py::class_<GPUCache>(m, "GPUCache")
         .def(py::init<size_t>())
+        .def("get_self_pointer", &GPUCache::get_self_pointer_addr, "Get the pointer of this instance")
         .def("put_numpy_array", &GPUCache::put_numpy_array, "Put a Numpy Array to device memory", "tensor_name"_a,
              "narray"_a)
         .def("get_numpy_array", &GPUCache::get_numpy_array, "Get a Numpy Array from device memory", "tensor_name"_a)
@@ -164,6 +169,7 @@ PYBIND11_MODULE(pyicecake, m) {
              "tensor"_a)
         .def("get_dltensor", &GPUCache::get_dltensor, "Get a DLManagedTensor from device memory", "tensor_name"_a,
              "deviceID"_a)
-        .def("save_dltensor_to_file", &GPUCache::save_dltensor_to_file, "Save dltensor to a file", "tensor_name"_a, "output_file_name"_a)
+        .def("save_dltensor_to_file", &GPUCache::save_dltensor_to_file, "Save dltensor to a file", "tensor_name"_a,
+             "output_file_name"_a)
         .def("load_dltensor_from_file", &GPUCache::load_dltensor_from_file, "Load dltensor from a file", "file_name"_a);
 }

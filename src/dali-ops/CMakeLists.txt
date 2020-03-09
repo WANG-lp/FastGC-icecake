@@ -1,3 +1,5 @@
+    add_compile_options(-fvisibility=hidden)
+    
     execute_process(
         COMMAND python -c "import nvidia.dali as dali; print(dali.sysconfig.get_lib_dir())"
         OUTPUT_VARIABLE DALI_LIB_DIR)

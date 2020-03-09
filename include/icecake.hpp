@@ -2,10 +2,10 @@
 #pragma once
 
 #include <atomic>
-#include <string>
-#include <vector>
 #include <memory>
+#include <string>
 #include <unordered_map>
+#include <vector>
 #include "dlpack.h"
 
 using std::string;
@@ -17,19 +17,6 @@ class array;
 }  // namespace pybind11
 
 namespace icecake {
-class tensor {
-   public:
-    tensor();
-    ~tensor();
-    bool to_cuda(int device_id = 0);
-    bool to_cuda_from_raw(int device_id = 0, void* raw = nullptr, size_t raw_len = 0);
-    std::pair<size_t, size_t> get_pos(const string& fid);
-    // ---------data area--------------
-    int tensor_type_;  // 0->host, 1->cuda
-    int device_id_;
-    void* data_;  // data_pointer;
-    size_t data_size_;
-};
 
 typedef struct {
     size_t total_write;
@@ -44,7 +31,8 @@ class GPUCache {
     GPUCache(size_t alloc_size);
     ~GPUCache();
 
-    void write_to_device_memory(const string& fid, const char* meta, size_t meta_length, const char* blockRAW, size_t length, int device);
+    void write_to_device_memory(const string& fid, const char* meta, size_t meta_length, const char* blockRAW,
+                                size_t length, int device);
     char* read_from_device_memory(const string& fid, size_t* length);
     char* read_from_device_memory(const string& fid);
     bool put_dltensor_to_device_memory(const string& fid, DLManagedTensor* dltensor);
@@ -58,6 +46,8 @@ class GPUCache {
 
     void save_dltensor_to_file(const string& fid, const string& fname);
     void load_dltensor_from_file(const string& fname);
+
+    size_t get_self_pointer_addr();
 
    private:
     statistics stat;

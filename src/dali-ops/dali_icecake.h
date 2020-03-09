@@ -32,7 +32,10 @@ void CopyDlTensor(void *out_data, DLManagedTensor *dlm_tensor, cudaStream_t stre
 template <typename Backend>
 class DaliIcecake : public ::dali::Operator<Backend> {
    public:
-    inline explicit DaliIcecake(const ::dali::OpSpec &spec) : ::dali::Operator<Backend>(spec) {}
+    inline explicit DaliIcecake(const ::dali::OpSpec &spec) : ::dali::Operator<Backend>(spec) {
+        GPUCacheObjAddr = spec.GetArgument<size_t>("GPUCacheObjAddr");
+        GC = reinterpret_cast<GPUCache *>(GPUCacheObjAddr);
+    }
 
     virtual inline ~DaliIcecake() = default;
 
@@ -49,6 +52,9 @@ class DaliIcecake : public ::dali::Operator<Backend> {
     }
 
     void RunImpl(::dali::workspace_t<Backend> &ws) override;
+
+    size_t GPUCacheObjAddr;
+    GPUCache *GC;
 };
 
 }  // namespace icecake
