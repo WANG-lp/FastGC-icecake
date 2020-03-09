@@ -8,7 +8,9 @@ else ()
 endif ()
 find_package(Threads REQUIRED)
 find_package(CUDA 10.0 REQUIRED)
+find_package (Python COMPONENTS Interpreter Development)
 include_directories(${CUDA_INCLUDE_DIRS})
+include_directories(${Python_INCLUDE_DIRS})
 set(CPP_SRC
         ../include/icecake.hpp
         ../include/icecake_base.hpp
@@ -16,17 +18,17 @@ set(CPP_SRC
         utils/int2bytes.cpp
         utils/chromiumbase64.cpp
         icecake.cpp
-
+        icecake-python.cpp
         )
 set(CUDA_SRC
         cuda/cuda.cuh
         cuda/sub.cu
         )
-
-add_library(icecake_c SHARED ${CPP_SRC} ${CUDA_SRC})
+add_library(icecake_c STATIC ${CPP_SRC} ${CUDA_SRC})
 target_link_libraries(icecake_c PRIVATE Threads::Threads ${CUDA_LIBRARIES})
+set_property(TARGET icecake_c PROPERTY POSITION_INDEPENDENT_CODE ON)
 
-pybind11_add_module(pyicecake icecake-python.cpp ${CPP_SRC})
+pybind11_add_module(pyicecake SHARED icecake-python.cpp ${CPP_SRC})
 target_link_libraries(pyicecake PRIVATE Threads::Threads ${CUDA_LIBRARIES})
 
 if (BUILD_DALI_PLUGIN)

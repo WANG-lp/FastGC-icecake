@@ -1,5 +1,5 @@
 #include "../include/dlpack.h"
-
+#include <cstring>
 void dltensor_deleter_for_test(DLManagedTensor* tensor);
 DLManagedTensor* make_DLM_tensor();
 

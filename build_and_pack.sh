@@ -8,7 +8,7 @@ cd _build
 cmake ..
 make -j8
 mkdir -p ../python/pyicecake/lib/
-cp lib/pyicecake.*.so ../python/pyicecake/lib/
+cp lib/*.so ../python/pyicecake/lib/
 cd ../python
 
 version=`python3 -c "import sys;t='{v[0]}.{v[1]}'.format(v=list(sys.version_info[:2]));sys.stdout.write(t)";`

@@ -1,18 +1,15 @@
 
 #pragma once
-#include <parallel_hashmap/phmap.h>
-#include <spdlog/spdlog.h>
+
 #include <atomic>
 #include <string>
 #include <vector>
+#include <memory>
+#include <unordered_map>
 #include "dlpack.h"
 
 using std::string;
 using std::vector;
-
-int sub(int a, int b);
-std::string csayhello(const std::string& str);
-int sub_device(int a, int b);
 
 namespace pybind11 {
 class capsule;
@@ -72,8 +69,7 @@ class GPUCache {
     size_t total_cuda_memory = 0;
     size_t total_cuda_free_memory = 0;
     vector<std::pair<size_t, size_t>> device_mem_info;
-
-    phmap::flat_hash_map<string, std::pair<size_t, size_t>> dict;
+    std::unordered_map<string, std::pair<size_t, size_t>> dict;
 
     bool check_CUDA_device_props();
 };

@@ -2,6 +2,7 @@
 #include <pybind11/pybind11.h>
 #include <iostream>
 #include <fstream>
+#include <spdlog/spdlog.h>
 #include "../include/icecake.hpp"
 #include "utils/chromiumbase64.h"
 

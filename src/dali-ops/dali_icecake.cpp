@@ -1,18 +1,70 @@
 #include "dali_icecake.h"
-
+#include <iostream>
+#include "../../include/icecake.hpp"
+#include "dali/pipeline/operator/operator.h"
+#include "dali/pipeline/util/copy_with_stride.h"
 namespace icecake {
-
+::dali::DALIDataType DLToDALIType(const DLDataType &dl_type) {
+    DALI_ENFORCE(dl_type.lanes == 1, "DALI Tensors do no not support types with the number of lanes other than 1");
+    switch (dl_type.code) {
+        case kDLUInt: {
+            switch (dl_type.bits) {
+                case 8:
+                    return ::dali::DALI_UINT8;
+                case 16:
+                    return ::dali::DALI_UINT16;
+                case 32:
+                    return ::dali::DALI_UINT32;
+                case 64:
+                    return ::dali::DALI_UINT64;
+            }
+            break;
+        }
+        case kDLInt: {
+            switch (dl_type.bits) {
+                case 8:
+                    return ::dali::DALI_INT8;
+                case 16:
+                    return ::dali::DALI_INT16;
+                case 32:
+                    return ::dali::DALI_INT32;
+                case 64:
+                    return ::dali::DALI_INT64;
+            }
+            break;
+        }
+        case kDLFloat: {
+            switch (dl_type.bits) {
+                case 16:
+                    return ::dali::DALI_FLOAT16;
+                case 32:
+                    return ::dali::DALI_FLOAT;
+                case 64:
+                    return ::dali::DALI_FLOAT64;
+            }
+            break;
+        }
+    }
+    DALI_FAIL("Could not convert DLPack tensor of unsupported type ");
+}
 template <>
 void DaliIcecake<::dali::CPUBackend>::RunImpl(::dali::SampleWorkspace &ws) {
-    const auto &input = ws.Input<::dali::CPUBackend>(0);
     auto &output = ws.Output<::dali::CPUBackend>(0);
+    GPUCache gc(4l * 1024 * 1024 * 1024);
+    gc.load_dltensor_from_file("/tmp/dog_1.tensor");
 
-    ::dali::TypeInfo type = input.type();
-    type.Copy<::dali::CPUBackend, ::dali::CPUBackend>(output.raw_mutable_data(), input.raw_data(), input.size(), 0);
+    auto dlm_tensor = gc.get_dltensor_from_device("dog/dog_1.jpg", 0);
+    output.set_type(::dali::TypeTable::GetTypeInfo(DLToDALIType(dlm_tensor->dl_tensor.dtype)));
+    std::vector<int64_t> shape;
+    for (int i = 0; i < dlm_tensor->dl_tensor.ndim; i++) {
+        shape.push_back(dlm_tensor->dl_tensor.shape[i]);
+    }
+    output.Resize(shape);
+    CopyDlTensor<::dali::CPUBackend>(output.raw_mutable_data(), dlm_tensor);
 }
 
-}  // namespace other_ns
+}  // namespace icecake
 
 DALI_REGISTER_OPERATOR(DaliIcecake, ::icecake::DaliIcecake<::dali::CPUBackend>, ::dali::CPU);
 
-DALI_SCHEMA(DaliIcecake).DocStr("Make a copy of the input tensor").NumInput(1).NumOutput(1);
+DALI_SCHEMA(DaliIcecake).DocStr("Make a copy of the input tensor").NumInput(0).NumOutput(1).NoPrune();
