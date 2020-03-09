@@ -14,7 +14,7 @@
 
     set(DALI_PLUGIN_SRC
         dali_icecake.cpp 
-        dali_icecake.cu
+        dali_icecake_gpu.cpp
         )
 
     cuda_add_library(dali_icecake SHARED ${DALI_PLUGIN_SRC})

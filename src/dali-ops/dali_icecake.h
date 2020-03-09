@@ -14,7 +14,7 @@ namespace icecake {
 ::dali::DALIDataType DLToDALIType(const DLDataType &dl_type);
 
 template <typename Backend>
-void CopyDlTensor(void *out_data, DLManagedTensor *dlm_tensor, cudaStream_t stream = 0) {
+void CopyDlTensor(void *out_data, DLManagedTensor *dlm_tensor, cudaStream_t stream) {
     auto &dl_tensor = dlm_tensor->dl_tensor;
     auto item_size = dl_tensor.dtype.bits / 8;
     if (dl_tensor.strides) {
@@ -29,7 +29,6 @@ void CopyDlTensor(void *out_data, DLManagedTensor *dlm_tensor, cudaStream_t stre
                                         stream);
     }
 }
-
 template <typename Backend>
 class DaliIcecake : public ::dali::Operator<Backend> {
    public:
@@ -49,7 +48,7 @@ class DaliIcecake : public ::dali::Operator<Backend> {
         return false;
     }
 
-    void RunImpl(::dali::Workspace<Backend> &ws) override;
+    void RunImpl(::dali::workspace_t<Backend> &ws) override;
 };
 
 }  // namespace icecake

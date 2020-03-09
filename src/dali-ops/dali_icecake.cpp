@@ -47,9 +47,10 @@ namespace icecake {
     }
     DALI_FAIL("Could not convert DLPack tensor of unsupported type ");
 }
+
 template <>
-void DaliIcecake<::dali::CPUBackend>::RunImpl(::dali::SampleWorkspace &ws) {
-    auto &output = ws.Output<::dali::CPUBackend>(0);
+void DaliIcecake<::dali::CPUBackend>::RunImpl(::dali::workspace_t<::dali::CPUBackend> &ws) {
+    auto &output = ws.OutputRef<::dali::CPUBackend>(0);
     GPUCache gc(4l * 1024 * 1024 * 1024);
     gc.load_dltensor_from_file("/tmp/dog_1.tensor");
 
@@ -59,8 +60,16 @@ void DaliIcecake<::dali::CPUBackend>::RunImpl(::dali::SampleWorkspace &ws) {
     for (int i = 0; i < dlm_tensor->dl_tensor.ndim; i++) {
         shape.push_back(dlm_tensor->dl_tensor.shape[i]);
     }
-    output.Resize(shape);
-    CopyDlTensor<::dali::CPUBackend>(output.raw_mutable_data(), dlm_tensor);
+    ::dali::TensorListShape<> list_shape{};
+    list_shape.resize(batch_size_, dlm_tensor->dl_tensor.ndim);
+    for (int i = 0; i < batch_size_; i++) {
+        list_shape.set_tensor_shape(i, ::dali::make_span(dlm_tensor->dl_tensor.shape, dlm_tensor->dl_tensor.ndim));
+    }
+    output.Resize(list_shape);
+    for (int i = 0; i < batch_size_; i++) {
+        auto dlm_tensor = gc.get_dltensor_from_device("dog/dog_1.jpg", 0);
+        CopyDlTensor<::dali::CPUBackend>(output[i].raw_mutable_data(), dlm_tensor, 0);
+    }
 }
 
 }  // namespace icecake
