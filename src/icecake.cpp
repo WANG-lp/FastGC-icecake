@@ -121,7 +121,7 @@ void dltensor_deleter(DLManagedTensor* tensor) {
         free(tensor);
     }
 }
-inline vector<char> serialize_dl_tensor(const DLTensor* t) {
+vector<char> serialize_dl_tensor(const DLTensor* t) {
     vector<char> tmp_buff;
     // DLDataType.code(uint8), DLDataType.bits(uint8), DLDataType.lanes(uint16), ndim(int),
     // shape[0](int64),shape[1]...shape[n], has_strides(char), strides[0](uint64),strides[1]...strides[n]
@@ -168,7 +168,7 @@ inline vector<char> serialize_dl_tensor(const DLTensor* t) {
     return tmp_buff;
 }
 
-inline DLTensor deserialize_dl_tensor(const char* data) {
+DLTensor deserialize_dl_tensor(const char* data) {
     if (data == nullptr) {
         spdlog::error("cannot deserialize nullptr to tensor");
         exit(1);

@@ -59,6 +59,9 @@ class GPUCache {
     bool put_dltensor(const string& fid, pybind11::capsule capsule);
     pybind11::capsule get_dltensor(const string& fid, int device);
 
+    void save_dltensor_to_file(const string& fid, const string& fname);
+    void load_dltensor_from_file(const string& fname);
+
    private:
     statistics stat;
     size_t total_write_size;
@@ -76,4 +79,6 @@ class GPUCache {
 };
 size_t calc_dltensor_size(const DLTensor* t);
 void dltensor_deleter(DLManagedTensor* tensor);
+vector<char> serialize_dl_tensor(const DLTensor* t);
+DLTensor deserialize_dl_tensor(const char* data);
 }  // namespace icecake

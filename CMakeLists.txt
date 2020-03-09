@@ -14,10 +14,13 @@ if (CMAKE_CXX_COMPILER_VERSION VERSION_GREATER 7.1)
     add_compile_options($<$<COMPILE_LANGUAGE:CXX>:-faligned-new>)
 endif ()
 
-# set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR}/lib)
+set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
+set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 
 option(DEBUG_MODE "build in debug mode" OFF)
 option(BUILD_TEST "build tests" ON)
+option(BUILD_DALI_PLUGIN "build dali plugin" ON)
 
 if (DEBUG_MODE)
     add_compile_options(-g)

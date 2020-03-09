@@ -14,6 +14,7 @@ set(CPP_SRC
         ../include/icecake_base.hpp
         utils/int2bytes.h
         utils/int2bytes.cpp
+        utils/chromiumbase64.cpp
         icecake.cpp
 
         )
@@ -28,4 +29,6 @@ target_link_libraries(icecake_c PRIVATE Threads::Threads ${CUDA_LIBRARIES})
 pybind11_add_module(pyicecake icecake-python.cpp ${CPP_SRC})
 target_link_libraries(pyicecake PRIVATE Threads::Threads ${CUDA_LIBRARIES})
 
-add_subdirectory(dali-ops)
+if (BUILD_DALI_PLUGIN)
+    add_subdirectory(dali-ops)
+endif()

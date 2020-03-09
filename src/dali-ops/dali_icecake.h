@@ -5,19 +5,19 @@
 
 #include "dali/pipeline/operator/operator.h"
 
-namespace other_ns {
+namespace icecake {
 
 template <typename Backend>
-class Dummy : public ::dali::Operator<Backend> {
+class DaliIcecake : public ::dali::Operator<Backend> {
    public:
-    inline explicit Dummy(const ::dali::OpSpec &spec) : ::dali::Operator<Backend>(spec) {}
+    inline explicit DaliIcecake(const ::dali::OpSpec &spec) : ::dali::Operator<Backend>(spec) {}
 
-    virtual inline ~Dummy() = default;
+    virtual inline ~DaliIcecake() = default;
 
-    Dummy(const Dummy &) = delete;
-    Dummy &operator=(const Dummy &) = delete;
-    Dummy(Dummy &&) = delete;
-    Dummy &operator=(Dummy &&) = delete;
+    DaliIcecake(const DaliIcecake &) = delete;
+    DaliIcecake &operator=(const DaliIcecake &) = delete;
+    DaliIcecake(DaliIcecake &&) = delete;
+    DaliIcecake &operator=(DaliIcecake &&) = delete;
 
    protected:
     bool CanInferOutputs() const override { return true; }
@@ -32,6 +32,6 @@ class Dummy : public ::dali::Operator<Backend> {
     void RunImpl(::dali::Workspace<Backend> &ws) override;
 };
 
-}  // namespace other_ns
+} 
 
 #endif  // EXAMPLE_DUMMY_H_

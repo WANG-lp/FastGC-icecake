@@ -1,9 +1,9 @@
 #include "dali_icecake.h"
 
-namespace other_ns {
+namespace icecake {
 
 template <>
-void Dummy<::dali::CPUBackend>::RunImpl(::dali::SampleWorkspace &ws) {
+void DaliIcecake<::dali::CPUBackend>::RunImpl(::dali::SampleWorkspace &ws) {
     const auto &input = ws.Input<::dali::CPUBackend>(0);
     auto &output = ws.Output<::dali::CPUBackend>(0);
 
@@ -13,6 +13,6 @@ void Dummy<::dali::CPUBackend>::RunImpl(::dali::SampleWorkspace &ws) {
 
 }  // namespace other_ns
 
-DALI_REGISTER_OPERATOR(CustomDummy, ::other_ns::Dummy<::dali::CPUBackend>, ::dali::CPU);
+DALI_REGISTER_OPERATOR(DaliIcecake, ::icecake::DaliIcecake<::dali::CPUBackend>, ::dali::CPU);
 
-DALI_SCHEMA(CustomDummy).DocStr("Make a copy of the input tensor").NumInput(1).NumOutput(1);
+DALI_SCHEMA(DaliIcecake).DocStr("Make a copy of the input tensor").NumInput(1).NumOutput(1);
