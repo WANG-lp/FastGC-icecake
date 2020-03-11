@@ -50,7 +50,11 @@ bool GPUCache::put_numpy_array(const string& fid, py::array narray) {
     }
     dlm_tensor.dl_tensor.ndim = narray.ndim();
     dlm_tensor.dl_tensor.shape = (int64_t*) narray.shape();
-    dlm_tensor.dl_tensor.strides = (int64_t*) narray.strides();
+    vector<int64_t> strides_vec;
+    for (int i = 0; i < dlm_tensor.dl_tensor.ndim; i++) {
+        strides_vec.push_back(narray.strides()[i] / narray.dtype().itemsize());
+    }
+    dlm_tensor.dl_tensor.strides = (int64_t*) strides_vec.data();
     return put_dltensor_to_device_memory(fid, &dlm_tensor);
 }
 py::array GPUCache::get_numpy_array(const string& fid) {
@@ -59,7 +63,7 @@ py::array GPUCache::get_numpy_array(const string& fid) {
     std::vector<ssize_t> strides;
     for (int i = 0; i < cap->dl_tensor.ndim; i++) {
         shapes.push_back(cap->dl_tensor.shape[i]);
-        strides.push_back(cap->dl_tensor.strides[i]);
+        strides.push_back(cap->dl_tensor.strides[i] * cap->dl_tensor.dtype.bits);
     }
     void* data = cap->dl_tensor.data;
     py::array ret;
