@@ -19,7 +19,7 @@ void DaliIcecake<::dali::GPUBackend>::RunImpl(::dali::workspace_t<::dali::GPUBac
     output.Resize(list_shape);
 
     for (int i = 0; i < batch_size_; i++) {
-        // CopyDlTensor<::dali::GPUBackend>(output.raw_mutable_tensor(i), dlm_tensor, ws.stream());
+        CopyDlTensor<::dali::GPUBackend>(output.raw_mutable_tensor(i), dlm_tensor, ws.stream());
     }
 }
 

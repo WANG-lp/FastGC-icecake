@@ -52,7 +52,6 @@ template <>
 void DaliIcecake<::dali::CPUBackend>::RunImpl(::dali::workspace_t<::dali::CPUBackend> &ws) {
     auto &output = ws.OutputRef<::dali::CPUBackend>(0);
     GPUCache *gc = GC;
-    // gc->load_dltensor_from_file("/tmp/dog_1.tensor");
 
     auto dlm_tensor = gc->get_dltensor_from_device("dog/dog_1.jpg", 0);
     output.set_type(::dali::TypeTable::GetTypeInfo(DLToDALIType(dlm_tensor->dl_tensor.dtype)));

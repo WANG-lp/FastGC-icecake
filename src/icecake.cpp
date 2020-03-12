@@ -9,6 +9,20 @@
 #include "utils/int2bytes.h"
 
 namespace icecake {
+inline bool dlpack_memory_row_major_test(DLTensor* dltensor, vector<size_t>& correct_strides) {
+    auto shape = dltensor->shape;
+    auto strides = dltensor->strides;
+    int dim = dltensor->ndim;
+    if (strides == nullptr || dim < 2) {
+        return true;
+    }
+    for (int i = 0; i < correct_strides.size(); i++) {
+        if (dltensor->strides[i] != correct_strides[i]) {
+            return false;
+        }
+    }
+    return true;
+}
 size_t calc_dltensor_size(const DLTensor* t) {
     size_t size = 1;
     for (size_t i = 0; i < t->ndim; ++i) {
@@ -36,12 +50,9 @@ void dltensor_deleter(DLManagedTensor* tensor) {
 vector<char> serialize_dl_tensor(const DLTensor* t) {
     vector<char> tmp_buff;
     // DLDataType.code(uint8), DLDataType.bits(uint8), DLDataType.lanes(uint16), ndim(int),
-    // shape[0](int64),shape[1]...shape[n], has_strides(char), strides[0](uint64),strides[1]...strides[n]
-    size_t buff_len =
-        sizeof(uint8_t) + sizeof(uint8_t) + sizeof(uint16_t) + sizeof(int) + t->ndim * sizeof(int64_t) + sizeof(char);
-    if (t->strides != NULL) {
-        buff_len += t->ndim * sizeof(int64_t);
-    }
+    // shape[0](int64),shape[1]...shape[n]
+    size_t buff_len = sizeof(uint8_t) + sizeof(uint8_t) + sizeof(uint16_t) + sizeof(int) + t->ndim * sizeof(int64_t);
+
     tmp_buff.resize(buff_len);
     unsigned char* data = (unsigned char*) tmp_buff.data();
     data[0] = t->dtype.code;
@@ -60,17 +71,6 @@ vector<char> serialize_dl_tensor(const DLTensor* t) {
     for (size_t i = 0; i < t->ndim; i++) {
         uint64_to_bytes(t->shape[i], data);
         data += sizeof(int64_t);
-    }
-    if (t->strides != NULL) {
-        data[0] = 1;
-        data += 1;
-        for (size_t i = 0; i < t->ndim; i++) {
-            uint64_to_bytes(t->strides[i], data);
-            data += sizeof(int64_t);
-        }
-    } else {
-        data[0] = 0;
-        data += 1;
     }
 
     if (!(t->ctx.device_type == DLDeviceType::kDLGPU || t->ctx.device_type == DLDeviceType::kDLCPU)) {
@@ -97,16 +97,10 @@ DLTensor deserialize_dl_tensor(const char* data) {
     offset += sizeof(int);
     t.shape = (int64_t*) ((char*) data + offset);
     offset += sizeof(int64_t) * t.ndim;
-    if (data[offset] != 0) {
-        offset += 1;
-        t.strides = (int64_t*) ((char*) data + offset);
-        offset += sizeof(int64_t) * t.ndim;
-    } else {
-        offset += 1;
-        t.strides = NULL;
-    }
+
     t.data = (void*) ((char*) data + offset);
     t.byte_offset = 0;
+    t.strides = nullptr;
     return t;
 }
 GPUCache::GPUCache(size_t alloc_size) : data_pos(0) {
@@ -199,9 +193,36 @@ char* GPUCache::read_from_device_memory(const string& fid) {
 bool GPUCache::put_dltensor_to_device_memory(const string& fid, DLManagedTensor* dltensor) {
     size_t data_len = calc_dltensor_size(&(dltensor->dl_tensor));
     auto tmp_buff_head = serialize_dl_tensor(&(dltensor->dl_tensor));
+    vector<size_t> strides_vec;
+    strides_vec.resize(dltensor->dl_tensor.ndim);
+    strides_vec[dltensor->dl_tensor.ndim - 1] = 1;
+    if (dltensor->dl_tensor.ndim >= 2) {
+        for (int i = dltensor->dl_tensor.ndim - 2; i >= 0; i--) {
+            strides_vec[i] = dltensor->dl_tensor.shape[i + 1] * strides_vec[i + 1];
+        }
+    }
+    if (dltensor->dl_tensor.strides == nullptr || dlpack_memory_row_major_test(&(dltensor->dl_tensor), strides_vec)) {
+        write_to_device_memory(fid, tmp_buff_head.data(), tmp_buff_head.size(),
+                               (const char*) (dltensor->dl_tensor.data), data_len, 0);
+    } else {  // has stride, convert to row-majored (the last dimension is contiguous)
+        spdlog::warn("tensor is not row-majored");
+        vector<char> data_vec;
+        data_vec.resize(data_len);
+        const char* ori_data = (const char*) dltensor->dl_tensor.data;
+#pragma omp parallel for
+        for (size_t i = 0; i < data_len; i++) {
+            size_t pos_in_dl_tensor = 0;
+            size_t offset = i;
+            for (int dim = 0; dim < dltensor->dl_tensor.ndim; dim++) {
+                size_t n = offset / strides_vec[dim];
+                pos_in_dl_tensor += n * dltensor->dl_tensor.strides[dim];
+                offset -= n * strides_vec[dim];
+            }
+            data_vec[i] = ori_data[pos_in_dl_tensor + offset];
+        }
+        write_to_device_memory(fid, tmp_buff_head.data(), tmp_buff_head.size(), data_vec.data(), data_len, 0);
+    }
 
-    write_to_device_memory(fid, tmp_buff_head.data(), tmp_buff_head.size(), (const char*) (dltensor->dl_tensor.data),
-                           data_len, 0);
     if (dltensor->deleter != nullptr) {
         dltensor->deleter(dltensor);
     }

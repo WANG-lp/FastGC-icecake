@@ -60,10 +60,16 @@ bool GPUCache::put_numpy_array(const string& fid, py::array narray) {
 py::array GPUCache::get_numpy_array(const string& fid) {
     auto cap = get_dltensor_from_device(fid, 0);
     std::vector<ssize_t> shapes;
-    std::vector<ssize_t> strides;
+    vector<size_t> strides;
+    strides.resize(cap->dl_tensor.ndim);
+    strides[cap->dl_tensor.ndim - 1] = 1;
+    if (cap->dl_tensor.ndim >= 2) {
+        for (int i = cap->dl_tensor.ndim - 2; i >= 0; i--) {
+            strides[i] = cap->dl_tensor.shape[i + 1] * strides[i + 1];
+        }
+    }
     for (int i = 0; i < cap->dl_tensor.ndim; i++) {
         shapes.push_back(cap->dl_tensor.shape[i]);
-        strides.push_back(cap->dl_tensor.strides[i] * cap->dl_tensor.dtype.bits);
     }
     void* data = cap->dl_tensor.data;
     py::array ret;
