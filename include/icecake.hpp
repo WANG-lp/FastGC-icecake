@@ -3,6 +3,7 @@
 
 #include <atomic>
 #include <memory>
+#include <mutex>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -48,8 +49,12 @@ class GPUCache {
     void load_dltensor_from_file(const string& fname);
 
     size_t get_self_pointer_addr();
+    void config_shuffle(bool enable_shuffle);
+    void shuffle(size_t seed = 0);
+    bool next_batch(size_t batch_size, vector<std::unique_ptr<DLManagedTensor>>& names, bool auto_shuffle = true);
 
    private:
+    std::mutex _lock;
     statistics stat;
     size_t total_write_size;
     size_t data_size = 0;
@@ -60,6 +65,11 @@ class GPUCache {
     size_t total_cuda_free_memory = 0;
     vector<std::pair<size_t, size_t>> device_mem_info;
     std::unordered_map<string, std::pair<size_t, size_t>> dict;
+
+    size_t seed = 0;
+    bool enable_shuffle = true;
+    vector<string> shuffled_array;
+    std::atomic<size_t> shuffled_pos;
 
     bool check_CUDA_device_props();
 };

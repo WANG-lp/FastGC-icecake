@@ -53,22 +53,22 @@ void DaliIcecake<::dali::CPUBackend>::RunImpl(::dali::workspace_t<::dali::CPUBac
     auto &output = ws.OutputRef<::dali::CPUBackend>(0);
     GPUCache *gc = GC;
 
-    auto dlm_tensor = gc->get_dltensor_from_device("dog/dog_1.jpg", 0);
-    output.set_type(::dali::TypeTable::GetTypeInfo(DLToDALIType(dlm_tensor->dl_tensor.dtype)));
-    std::vector<int64_t> shape;
-    for (int i = 0; i < dlm_tensor->dl_tensor.ndim; i++) {
-        shape.push_back(dlm_tensor->dl_tensor.shape[i]);
-    }
+    vector<std::unique_ptr<DLManagedTensor>> dltensors;
+    bool hasNext = gc->next_batch(batch_size_, dltensors, true);
+    DALI_ENFORCE(hasNext, "Error while geting dltensors from GPUCache");
+
+    output.set_type(::dali::TypeTable::GetTypeInfo(DLToDALIType(dltensors[0]->dl_tensor.dtype)));
+
     ::dali::TensorListShape<> list_shape{};
-    list_shape.resize(batch_size_, dlm_tensor->dl_tensor.ndim);
+    list_shape.resize(batch_size_, dltensors[0]->dl_tensor.ndim);
     for (int i = 0; i < batch_size_; i++) {
-        list_shape.set_tensor_shape(i, ::dali::make_span(dlm_tensor->dl_tensor.shape, dlm_tensor->dl_tensor.ndim));
+        list_shape.set_tensor_shape(i, ::dali::make_span(dltensors[i]->dl_tensor.shape, dltensors[i]->dl_tensor.ndim));
     }
     output.Resize(list_shape);
     auto &thread_pool = ws.GetThreadPool();
     for (int i = 0; i < batch_size_; i++) {
         thread_pool.DoWorkWithID(
-            [&, i](int) { CopyDlTensor<::dali::CPUBackend>(output[i].raw_mutable_data(), dlm_tensor, 0); });
+            [&, i](int) { CopyDlTensor<::dali::CPUBackend>(output[i].raw_mutable_data(), dltensors[i].get(), 0); });
     }
     thread_pool.WaitForWork();
 }

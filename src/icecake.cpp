@@ -3,11 +3,11 @@
 #include "../include/icecake.hpp"
 #include <cuda_runtime.h>
 #include <spdlog/spdlog.h>
+#include <random>
 #include <string>
 #include <vector>
 #include "cuda/cuda.cuh"
 #include "utils/int2bytes.h"
-
 namespace icecake {
 inline bool dlpack_memory_row_major_test(DLTensor* dltensor, vector<size_t>& correct_strides) {
     auto shape = dltensor->shape;
@@ -171,8 +171,9 @@ void GPUCache::write_to_device_memory(const string& fid, const char* meta, size_
     }
     cudaMemcpy(data_ptr + old_size + meta_length, blockRAW, length, cudaMemcpyDefault);
     cudaMemPrefetchAsync(data_ptr + old_size, meta_length + length, device);  // migrating data to a GPU memory
-
+    _lock.lock();
     dict[fid] = {old_size, meta_length + length};
+    _lock.unlock();
 }
 
 char* GPUCache::read_from_device_memory(const string& fid, size_t* length) {
@@ -241,6 +242,51 @@ DLManagedTensor* GPUCache::get_dltensor_from_device(const string& fid, int devic
     // dlm_tensor->manager_ctx = NULL;
     // dlm_tensor->deleter = NULL;
     return dlm_tensor;
+}
+
+void GPUCache::shuffle(size_t seed) {
+    if (shuffled_array.size() != dict.size()) {  // update shuffled array
+        shuffled_array.clear();
+        _lock.lock();
+        for (const auto& a : dict) {
+            shuffled_array.push_back(a.first);
+        }
+        _lock.unlock();
+    }
+    if (enable_shuffle) {
+        std::shuffle(shuffled_array.begin(), shuffled_array.end(), std::default_random_engine(seed));
+    } else {
+        std::sort(shuffled_array.begin(), shuffled_array.end());
+    }
+    this->seed = seed;
+    shuffled_pos.store(0);
+}
+bool GPUCache::next_batch(size_t batch_size, vector<std::unique_ptr<DLManagedTensor>>& names, bool auto_shuffle) {
+    names.clear();
+    size_t curr_pos = shuffled_pos.fetch_add(batch_size);
+    if (curr_pos >= shuffled_array.size()) {
+        if (auto_shuffle) {
+            shuffle(this->seed + 1);
+            return next_batch(batch_size, names, false);
+        } else {
+            return false;
+        }
+    }
+    size_t end_pos = curr_pos + batch_size;
+    if (end_pos > shuffled_array.size()) {
+        for (; curr_pos < shuffled_array.size(); curr_pos++) {
+            names.push_back(std::unique_ptr<DLManagedTensor>(get_dltensor_from_device(shuffled_array[curr_pos], 0)));
+        }
+        for (; names.size() < batch_size;) {  // padding
+            names.push_back(std::unique_ptr<DLManagedTensor>(
+                get_dltensor_from_device(shuffled_array[shuffled_array.size() - 1], 0)));
+        }
+    } else {
+        for (; curr_pos < end_pos; curr_pos++) {
+            names.push_back(std::unique_ptr<DLManagedTensor>(get_dltensor_from_device(shuffled_array[curr_pos], 0)));
+        }
+    }
+    return true;
 }
 
 std::pair<size_t, size_t> GPUCache::get_pos(const string& fid) {

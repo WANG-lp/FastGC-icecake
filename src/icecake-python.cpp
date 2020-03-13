@@ -164,6 +164,8 @@ size_t GPUCache::get_self_pointer_addr() {
     return reinterpret_cast<std::uintptr_t>(addr);
 }
 
+void GPUCache::config_shuffle(bool enable_shuffle) { this->enable_shuffle = enable_shuffle; }
+
 }  // namespace icecake
 
 PYBIND11_MODULE(pyicecake, m) {
@@ -181,5 +183,6 @@ PYBIND11_MODULE(pyicecake, m) {
              "deviceID"_a)
         .def("save_dltensor_to_file", &GPUCache::save_dltensor_to_file, "Save dltensor to a file", "tensor_name"_a,
              "output_file_name"_a)
-        .def("load_dltensor_from_file", &GPUCache::load_dltensor_from_file, "Load dltensor from a file", "file_name"_a);
+        .def("load_dltensor_from_file", &GPUCache::load_dltensor_from_file, "Load dltensor from a file", "file_name"_a)
+        .def("config_shuffle", &GPUCache::config_shuffle, "Enable/disable random", "enable_shuffle"_a);
 }
