@@ -53,9 +53,16 @@ void DaliIcecake<::dali::CPUBackend>::RunImpl(::dali::workspace_t<::dali::CPUBac
     auto &output = ws.OutputRef<::dali::CPUBackend>(0);
     GPUCache *gc = GC;
 
-    vector<std::unique_ptr<DLManagedTensor>> dltensors;
-    bool hasNext = gc->next_batch(batch_size_, dltensors, true);
+    vector<string> dltensors_names;
+    bool hasNext = gc->next_batch(batch_size_, dltensors_names, true);
     DALI_ENFORCE(hasNext, "Error while geting dltensors from GPUCache");
+    vector<DLManagedTensor *> dltensors;
+    dltensors.resize(dltensors_names.size());
+
+#pragma omp parallel for
+    for (size_t i = 0; i < dltensors_names.size(); i++) {
+        dltensors[i] = gc->get_dltensor_from_device(dltensors_names[i], 0);
+    }
 
     output.set_type(::dali::TypeTable::GetTypeInfo(DLToDALIType(dltensors[0]->dl_tensor.dtype)));
 
@@ -68,9 +75,14 @@ void DaliIcecake<::dali::CPUBackend>::RunImpl(::dali::workspace_t<::dali::CPUBac
     auto &thread_pool = ws.GetThreadPool();
     for (int i = 0; i < batch_size_; i++) {
         thread_pool.DoWorkWithID(
-            [&, i](int) { CopyDlTensor<::dali::CPUBackend>(output[i].raw_mutable_data(), dltensors[i].get(), 0); });
+            [&, i](int) { CopyDlTensor<::dali::CPUBackend>(output[i].raw_mutable_data(), dltensors[i], 0); });
     }
     thread_pool.WaitForWork();
+#pragma omp parallel for
+    for (size_t i = 0; i < dltensors_names.size(); i++) {
+        if (dltensors[i]->deleter)
+            dltensors[i]->deleter(dltensors[i]);
+    }
 }
 
 }  // namespace icecake

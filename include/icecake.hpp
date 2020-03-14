@@ -51,7 +51,7 @@ class GPUCache {
     size_t get_self_pointer_addr();
     void config_shuffle(bool enable_shuffle);
     void shuffle(size_t seed = 0);
-    bool next_batch(size_t batch_size, vector<std::unique_ptr<DLManagedTensor>>& names, bool auto_shuffle = true);
+    bool next_batch(size_t batch_size, vector<string>& names, bool auto_shuffle = true);
 
    private:
     std::mutex _lock;

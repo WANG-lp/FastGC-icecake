@@ -261,7 +261,7 @@ void GPUCache::shuffle(size_t seed) {
     this->seed = seed;
     shuffled_pos.store(0);
 }
-bool GPUCache::next_batch(size_t batch_size, vector<std::unique_ptr<DLManagedTensor>>& names, bool auto_shuffle) {
+bool GPUCache::next_batch(size_t batch_size, vector<string>& names, bool auto_shuffle) {
     names.clear();
     size_t curr_pos = shuffled_pos.fetch_add(batch_size);
     if (curr_pos >= shuffled_array.size()) {
@@ -275,15 +275,14 @@ bool GPUCache::next_batch(size_t batch_size, vector<std::unique_ptr<DLManagedTen
     size_t end_pos = curr_pos + batch_size;
     if (end_pos > shuffled_array.size()) {
         for (; curr_pos < shuffled_array.size(); curr_pos++) {
-            names.push_back(std::unique_ptr<DLManagedTensor>(get_dltensor_from_device(shuffled_array[curr_pos], 0)));
+            names.push_back(shuffled_array[curr_pos]);
         }
         for (; names.size() < batch_size;) {  // padding
-            names.push_back(std::unique_ptr<DLManagedTensor>(
-                get_dltensor_from_device(shuffled_array[shuffled_array.size() - 1], 0)));
+            names.push_back(shuffled_array[shuffled_array.size() - 1]);
         }
     } else {
         for (; curr_pos < end_pos; curr_pos++) {
-            names.push_back(std::unique_ptr<DLManagedTensor>(get_dltensor_from_device(shuffled_array[curr_pos], 0)));
+            names.push_back(shuffled_array[curr_pos]);
         }
     }
     return true;
