@@ -11,3 +11,8 @@ gtest_discover_tests(testlib)
 
 add_executable(valgrind_test valgrind_test.cpp common.cpp)
 target_link_libraries(valgrind_test icecake_c)
+
+find_package(FUSE)
+add_executable(rofs rofs.cpp)
+target_compile_options(rofs PRIVATE $<$<COMPILE_LANGUAGE:CXX>:-O2 -D_GNU_SOURCE -D_FILE_OFFSET_BITS=64>)
+target_link_libraries(rofs ${FUSE_LIBRARIES})

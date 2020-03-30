@@ -35,7 +35,7 @@ static bool set_dtype(char dtype_name, size_t dtype_size, DLTensor* tensor) {
 static void DLM_tensor_capsule_destructor(PyObject* capsule) {
     if (strcmp(PyCapsule_GetName(capsule), DLTENSOR_NAME) == 0) {
         auto* ptr = static_cast<DLManagedTensor*>(PyCapsule_GetPointer(capsule, DLTENSOR_NAME));
-        dltensor_deleter((DLManagedTensor*) capsule);
+        // dltensor_deleter((DLManagedTensor*) capsule);
     }
 }
 bool GPUCache::put_numpy_array(const string& fid, py::array narray) {
