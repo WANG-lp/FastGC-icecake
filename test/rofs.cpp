@@ -37,6 +37,7 @@ static const char *rofsVersion = "2008.09.24";
 #include <cstring>
 #include <string>
 #include <vector>
+#include <atomic>
 using std::string;
 using std::vector;
 
@@ -49,7 +50,7 @@ struct timespec ts;
 // virtual stat file
 const char *stat_file = "/.stat";
 string stat_content;
-size_t stat_readn = 0;
+std::atomic<size_t> stat_readn;
 
 // Translate an rofs path into it's underlying filesystem path
 static char *translate_path(const char *path) {
@@ -485,5 +486,6 @@ int main(int argc, char *argv[]) {
 #endif
 
     timespec_get(&ts, TIME_UTC);
+    stat_readn.store(0);
     return 0;
 }

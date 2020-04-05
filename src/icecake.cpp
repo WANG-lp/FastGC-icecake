@@ -296,4 +296,17 @@ std::pair<size_t, size_t> GPUCache::get_pos(const string& fid) {
     return {0, 0};
 }
 
+cv::Mat DatasetPipeline::Crop(const cv::Mat& img, int top, int left, int hight, int width) {
+    cv::Rect roi;
+    roi.x = top;
+    roi.y = left;
+    roi.width = left + width;
+    roi.height = top + hight;
+
+    /* Crop the original image to the defined ROI */
+
+    cv::Mat crop = img(roi);
+    return crop;
+}
+
 }  // namespace icecake

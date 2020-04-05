@@ -1,6 +1,6 @@
 find_package(GTest REQUIRED)
 include_directories(${GTEST_INCLUDE_DIRS})
-
+find_package(OpenMP REQUIRED)
 add_library(test_main OBJECT tests.cpp common.cpp)
 
 add_executable(testlib testlib.cpp $<TARGET_OBJECTS:test_main>)
@@ -16,3 +16,6 @@ find_package(FUSE)
 add_executable(rofs rofs.cpp)
 target_compile_options(rofs PRIVATE $<$<COMPILE_LANGUAGE:CXX>:-O2 -D_GNU_SOURCE -D_FILE_OFFSET_BITS=64>)
 target_link_libraries(rofs ${FUSE_LIBRARIES})
+
+add_executable(opencv_test opencv_test.cpp)
+target_link_libraries(opencv_test icecake_c OpenMP::OpenMP_CXX)

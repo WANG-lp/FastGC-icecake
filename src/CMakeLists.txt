@@ -10,6 +10,8 @@ find_package(Threads REQUIRED)
 find_package(OpenMP REQUIRED)
 find_package(CUDA 10.0 REQUIRED)
 find_package (Python COMPONENTS Interpreter Development)
+find_package( OpenCV REQUIRED )
+include_directories( ${OpenCV_INCLUDE_DIRS} )
 include_directories(${CUDA_INCLUDE_DIRS})
 include_directories(${Python_INCLUDE_DIRS})
 set(CPP_SRC
@@ -26,11 +28,11 @@ set(CUDA_SRC
         cuda/sub.cu
         )
 add_library(icecake_c STATIC ${CPP_SRC} ${CUDA_SRC})
-target_link_libraries(icecake_c PRIVATE Threads::Threads ${CUDA_LIBRARIES} OpenMP::OpenMP_CXX)
+target_link_libraries(icecake_c PRIVATE Threads::Threads ${CUDA_LIBRARIES} OpenMP::OpenMP_CXX ${OpenCV_LIBS})
 set_property(TARGET icecake_c PROPERTY POSITION_INDEPENDENT_CODE ON)
 
 pybind11_add_module(pyicecake SHARED icecake-python.cpp ${CPP_SRC})
-target_link_libraries(pyicecake PRIVATE Threads::Threads ${CUDA_LIBRARIES} OpenMP::OpenMP_CXX)
+target_link_libraries(pyicecake PRIVATE Threads::Threads ${CUDA_LIBRARIES} OpenMP::OpenMP_CXX ${OpenCV_LIBS})
 
 if (BUILD_DALI_PLUGIN)
     add_subdirectory(dali-ops)

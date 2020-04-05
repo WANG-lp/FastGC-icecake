@@ -4,6 +4,7 @@
 #include <atomic>
 #include <memory>
 #include <mutex>
+#include <opencv2/opencv.hpp>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -24,6 +25,16 @@ typedef struct {
     size_t origin_size;
     size_t total_read;
 } statistics;
+
+class DatasetPipeline {
+   public:
+    DatasetPipeline();
+    ~DatasetPipeline();
+    cv::Mat Crop(const cv::Mat& img, int top, int left, int hight, int width);
+
+   private:
+    vector<string> fnames;
+};
 
 class GPUCache {
    public:
