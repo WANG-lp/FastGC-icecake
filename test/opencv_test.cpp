@@ -61,8 +61,9 @@ vector<cv::Mat> test_opencv_crop(const vector<cv::Mat>& images_mat, size_t bench
 
     size_t t_height = 0;
     size_t t_width = 0;
+    size_t total_size = 0;
     auto start_t = get_wall_time();
-#pragma omp parallel for reduction(+ : t_height) reduction(+ : t_width) num_threads(16)
+#pragma omp parallel for reduction(+ : t_height) reduction(+ : t_width) reduction(+ : total_size) num_threads(16)
     for (int i = 0; i < bench_images_num; i++) {
         cv::Mat img = images_mat[i];
         cv::Rect roi;
@@ -80,6 +81,7 @@ vector<cv::Mat> test_opencv_crop(const vector<cv::Mat>& images_mat, size_t bench
         cv::Mat crop = img(roi);
         t_height += crop.rows;
         t_width += crop.cols;
+        total_size += crop.rows * crop.cols * crop.elemSize();
         result[i] = crop;
     }
     auto end_t = get_wall_time();
@@ -88,6 +90,7 @@ vector<cv::Mat> test_opencv_crop(const vector<cv::Mat>& images_mat, size_t bench
     // spdlog::info("benched {} files", bench_images_num);
     spdlog::info("==========opencv crop==========");
     spdlog::info("height: {}, width:{}", t_height, t_width);
+    spdlog::info("total size: {}", total_size);
     spdlog::info("time: {}s", time);
     double time_per_image = time / bench_images_num;
     spdlog::info("time per file: {}", time_per_image);
@@ -96,7 +99,7 @@ vector<cv::Mat> test_opencv_crop(const vector<cv::Mat>& images_mat, size_t bench
     return result;
 }
 
-vector<vector<uchar>> test_opencv_to_jpeg(const vector<cv::Mat>& images_mat, size_t bench_num) {
+vector<vector<uchar>> test_opencv_to_image(const string& ftype, const vector<cv::Mat>& images_mat, size_t bench_num) {
     size_t bench_images_num = bench_num;
 
     vector<vector<uchar>> result;
@@ -107,15 +110,15 @@ vector<vector<uchar>> test_opencv_to_jpeg(const vector<cv::Mat>& images_mat, siz
 
 #pragma omp parallel for reduction(+ : jpeg_size) num_threads(16)
     for (int i = 0; i < bench_images_num; i++) {
-        cv::imencode(".jpeg", images_mat[i], result[i]);
+        cv::imencode(ftype, images_mat[i], result[i]);
         jpeg_size += result[i].size();
     }
     auto end_t = get_wall_time();
     double time = (end_t - start_t) / 1000000.0f;
 
     // spdlog::info("benched {} files", bench_images_num);
-    spdlog::info("==========opencv to_jpeg==========");
-    spdlog::info("compressed jpeg size: {}", jpeg_size);
+    spdlog::info("==========opencv to {}==========", ftype);
+    spdlog::info("compressed {} size: {}", ftype, jpeg_size);
     spdlog::info("time: {}s", time);
     double time_per_image = time / bench_images_num;
     spdlog::info("time per file: {}", time_per_image);
@@ -164,13 +167,16 @@ vector<cv::Mat> test_opencv_decode2(const vector<vector<uchar>> img_buffs, size_
 
     size_t t_height = 0;
     size_t t_width = 0;
+    size_t total_matrix_size = 0;
+
     auto start_t = get_wall_time();
-#pragma omp parallel for reduction(+ : t_height) reduction(+ : t_width) num_threads(16)
+#pragma omp parallel for reduction(+ : t_height) reduction(+ : t_width) reduction(+ : total_matrix_size) num_threads(16)
     for (int i = 0; i < bench_images_num; i++) {
         result[i] = cv::imdecode(img_buffs[i], cv::ImreadModes::IMREAD_COLOR);
         t_height += result[i].rows;
         t_width += result[i].cols;
         // break;
+        total_matrix_size += result[i].rows * result[i].cols * result[i].elemSize();
     }
     auto end_t = get_wall_time();
     double time = (end_t - start_t) / 1000000.0f;
@@ -178,6 +184,7 @@ vector<cv::Mat> test_opencv_decode2(const vector<vector<uchar>> img_buffs, size_
     // spdlog::info("benched {} files", bench_images_num);
     spdlog::info("==========opencv decode from buffer==========");
     spdlog::info("height: {}, width:{}", t_height, t_width);
+    spdlog::info("total matrix size: {}", total_matrix_size);
     spdlog::info("time: {}s", time);
     double time_per_image = time / bench_images_num;
     spdlog::info("time per image: {}", time_per_image);
@@ -212,7 +219,7 @@ int main(int argc, char** argv) {
     auto file_raw = test_file_read("/mnt/nvme-ssd/lipeng/imagenet/", fnames, benched_num);
     auto decoded_images = test_opencv_decode2(file_raw, benched_num);
     auto croped_imgs = test_opencv_crop(decoded_images, benched_num);
-    auto croped_raw = test_opencv_to_jpeg(croped_imgs, benched_num);
+    auto croped_raw = test_opencv_to_image(".jpeg", croped_imgs, benched_num);
     test_opencv_decode2(croped_raw, benched_num);
     return 0;
 }

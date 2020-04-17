@@ -10,7 +10,9 @@ find_package(Threads REQUIRED)
 find_package(OpenMP REQUIRED)
 find_package(CUDA 10.0 REQUIRED)
 find_package (Python COMPONENTS Interpreter Development)
-find_package( OpenCV REQUIRED )
+#find_package( OpenCV REQUIRED NO_DEFAULT_PATH PATHS "/home/lwangay/root/opencv-3.4.10/usr/local/share/OpenCV")
+find_package( OpenCV REQUIRED)
+
 include_directories( ${OpenCV_INCLUDE_DIRS} )
 include_directories(${CUDA_INCLUDE_DIRS})
 include_directories(${Python_INCLUDE_DIRS})
@@ -37,3 +39,7 @@ target_link_libraries(pyicecake PRIVATE Threads::Threads ${CUDA_LIBRARIES} OpenM
 if (BUILD_DALI_PLUGIN)
     add_subdirectory(dali-ops)
 endif()
+
+add_executable(jpeg_dec jpeg_decoder.cpp)
+target_link_libraries(jpeg_dec PRIVATE Threads::Threads ${CUDA_LIBRARIES} OpenMP::OpenMP_CXX)
+
