@@ -52,27 +52,37 @@ struct SOFInfo {
 };
 
 struct HuffmanTable {
-    std::unordered_map<uint8_t, uint16_t> dc_tables[2];
-    std::unordered_map<uint8_t, uint16_t> ac_tables[2];
+    vector<std::unordered_map<std::tuple<uint8_t, uint16_t>, uint16_t>> dc_tables;
+    vector<std::unordered_map<std::tuple<uint8_t, uint16_t>, uint16_t>> ac_tables;
 };
 
-struct MCU {};
+struct MCUs {
+    vector<vector<uint8_t>> mcu[3];
+    uint16_t h_mcu;
+    uint16_t w_mcu;
+};
 
 struct Image_struct {
     APPinfo app0;
     vector<vector<float>> dqt_tables;
     SOFInfo sof;
+    HuffmanTable huffmanTable;
+    vector<uint8_t> table_mapping_dc;
+    vector<uint8_t> table_mapping_ac;
+    MCUs mcus;
 };
 
 class JPEGDec {
    public:
     JPEGDec(const string &fname);
     ~JPEGDec();
-    void Header(size_t idx);
+    void Parser(size_t idx);
     size_t Parser_app0(size_t idx, uint8_t *data_ptr);
     size_t Parser_DQT(size_t idx, uint8_t *data_ptr);
     size_t Parser_SOF0(size_t idx, uint8_t *data_ptr);
     size_t Parser_DHT(size_t idx, uint8_t *data_ptr);
+    size_t Parser_SOS(size_t idx, uint8_t *data_ptr);
+    size_t Parser_MCUs(size_t idx, uint8_t *data_ptr);
 
    private:
     vector<Image_struct> images;
