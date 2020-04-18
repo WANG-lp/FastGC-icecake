@@ -52,16 +52,20 @@ struct SOFInfo {
 };
 
 struct HuffmanTable {
-    vector<std::unordered_map<std::tuple<uint8_t, uint16_t>, uint16_t>> dc_tables;
-    vector<std::unordered_map<std::tuple<uint8_t, uint16_t>, uint16_t>> ac_tables;
+    std::unordered_map<uint8_t, std::unordered_map<uint16_t, uint8_t>> dc_tables[2];
+    std::unordered_map<uint8_t, std::unordered_map<uint16_t, uint8_t>> ac_tables[2];
 };
 
 struct MCUs {
-    vector<vector<uint8_t>> mcu[3];
-    uint16_t h_mcu;
-    uint16_t w_mcu;
+    vector<vector<float>> mcu[3];
+    uint16_t h_mcu_num;
+    uint16_t w_mcu_num;
 };
-
+struct RGBPix {
+    uint8_t r;
+    uint8_t g;
+    uint8_t b;
+};
 struct Image_struct {
     APPinfo app0;
     vector<vector<float>> dqt_tables;
@@ -70,6 +74,12 @@ struct Image_struct {
     vector<uint8_t> table_mapping_dc;
     vector<uint8_t> table_mapping_ac;
     MCUs mcus;
+    float last_dc[3];
+    vector<RGBPix> rgb;
+
+    uint8_t tmp_byte;
+    uint8_t tmp_byte_consume_pos;
+    uint8_t *global_data_reamins;
 };
 
 class JPEGDec {
@@ -83,8 +93,18 @@ class JPEGDec {
     size_t Parser_DHT(size_t idx, uint8_t *data_ptr);
     size_t Parser_SOS(size_t idx, uint8_t *data_ptr);
     size_t Parser_MCUs(size_t idx, uint8_t *data_ptr);
+    void Dequantize(size_t idx);
+    void ZigZag(size_t idx);
+    void IDCT(size_t idx);
+    void toRGB(size_t idx);
 
    private:
+    uint8_t get_a_bit(size_t idx);
+    float read_value(size_t idx, uint8_t code_len);
+    void set_up_bit_stream(size_t idx, uint8_t *init_ptr);
+    size_t parser_mcu(size_t idx, uint16_t h_mcu_idx, uint16_t w_mcu_idx);
+    size_t read_block(size_t idx, uint8_t id, size_t block_idx);
+    uint8_t match_huffman(std::unordered_map<uint8_t, std::unordered_map<uint16_t, uint8_t>> &map, size_t idx);
     vector<Image_struct> images;
     vector<vector<uint8_t>> data;
 };
