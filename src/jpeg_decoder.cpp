@@ -486,17 +486,14 @@ void JPEGDec::Dequantize(size_t idx) {
     auto &quant_tables = images[idx].dqt_tables;
     for (uint8_t id = 0; id < 3; id++) {
         auto &c_info = comp_info[id];
-        for (uint16_t h = 0; h < c_info.vertical_sampling; h++) {
-            for (uint16_t w = 0; w < c_info.horizontal_sampling; w++) {
-                for (int i = 0; i < 8; i++) {
-                    for (int j = 0; j < 8; j++) {
-                        images[idx].mcus.mcu[id][h * w + w][i * 8 + j] *=
-                            quant_tables[c_info.quant_table_id][i * 8 + j];
-                    }
+        for (auto &vec : images[idx].mcus.mcu[id]) {
+            for (int i = 0; i < 8; i++) {
+                for (int j = 0; j < 8; j++) {
+                    vec[i * 8 + j] *= quant_tables[c_info.quant_table_id][i * 8 + j];
                 }
-                // printBlock(images[idx].mcus.mcu[id][h * w + w]);
-                // exit(0);
             }
+            // printBlock(vec);
+            // exit(0);
         }
     }
 }
@@ -511,17 +508,15 @@ void JPEGDec::ZigZag(size_t idx) {
     auto &comp_info = sofinfo.component_infos;
     for (uint8_t id = 0; id < 3; id++) {
         auto &c_info = comp_info[id];
-        for (uint16_t h = 0; h < c_info.vertical_sampling; h++) {
-            for (uint16_t w = 0; w < c_info.horizontal_sampling; w++) {
-                vector<float> tmp_block = images[idx].mcus.mcu[id][h * w + w];
-                for (int i = 0; i < 8; i++) {
-                    for (int j = 0; j < 8; j++) {
-                        images[idx].mcus.mcu[id][h * w + w][i * 8 + j] = tmp_block[zz_table[i][j]];
-                    }
+        for (auto &vec : images[idx].mcus.mcu[id]) {
+            vector<float> tmp_block = vec;
+            for (int i = 0; i < 8; i++) {
+                for (int j = 0; j < 8; j++) {
+                    vec[i * 8 + j] = tmp_block[zz_table[i][j]];
                 }
-                // printBlock(images[idx].mcus.mcu[id][h * w + w]);
-                // exit(0);
             }
+            // printBlock(vec);
+            // exit(0);
         }
     }
 }
@@ -539,29 +534,34 @@ void JPEGDec::IDCT(size_t idx) {
     auto &comp_info = sofinfo.component_infos;
     for (uint8_t id = 0; id < 3; id++) {
         auto &c_info = comp_info[id];
-        for (uint16_t h = 0; h < c_info.vertical_sampling; h++) {
-            for (uint16_t w = 0; w < c_info.horizontal_sampling; w++) {
-                // vector<float> tmp_block = images[idx].mcus.mcu[id][h * w + w];
-                vector<float> tmp_block(64, 0.0f);
-                for (int i = 0; i < 8; i++) {
-                    for (int j = 0; j < 8; j++) {
-                        for (int x = 0; x < 8; x++) {
-                            for (int y = 0; y < 8; y++) {
-                                auto i_cos = std::cos((2 * i + 1) * M_PI / 16.0f * x);
-                                auto j_cos = std::cos((2 * j + 1) * M_PI / 16.0f * y);
-                                tmp_block[i * 8 + j] +=
-                                    cc(x, y) * images[idx].mcus.mcu[id][h * w + w][x * 8 + y] * i_cos * j_cos;
-                            }
+        for (auto &vec : images[idx].mcus.mcu[id]) {
+            vector<float> tmp_block(64, 0.0f);
+            for (int i = 0; i < 8; i++) {
+                for (int j = 0; j < 8; j++) {
+                    for (int x = 0; x < 8; x++) {
+                        for (int y = 0; y < 8; y++) {
+                            auto i_cos = std::cos((2 * i + 1) * M_PI / 16.0f * x);
+                            auto j_cos = std::cos((2 * j + 1) * M_PI / 16.0f * y);
+                            tmp_block[i * 8 + j] += cc(x, y) * vec[x * 8 + y] * i_cos * j_cos;
                         }
-                        tmp_block[i * 8 + j] /= 4.0;
                     }
+                    tmp_block[i * 8 + j] /= 4.0;
                 }
-                images[idx].mcus.mcu[id][h * w + w] = tmp_block;
-                // printBlock(images[idx].mcus.mcu[id][h * w + w]);
-                // exit(0);
             }
+            vec = tmp_block;
+            // printBlock(vec);
+            // exit(0);
         }
     }
+}
+
+uint8_t chomp(float x) {
+    if (x > 255.0) {
+        return 255;
+    } else if (x < 0.0) {
+        return 0;
+    }
+    return std::round(x);
 }
 
 void JPEGDec::toRGB(size_t idx) {
@@ -573,17 +573,41 @@ void JPEGDec::toRGB(size_t idx) {
     for (int i = 0; i < sofinfo.height; i++) {
         for (int j = 0; j < sofinfo.width; j++) {  // pixel
             float YCbCr[3] = {0, 0, 0};
-            int p2mcu_h = i / (8 * sofinfo.max_vertical_sampling);
-            int p2mcu_w = j / (8 * sofinfo.max_horizontal_sampling);
-            int ii = i % (8 * sofinfo.max_vertical_sampling);
-            int jj = j % (8 * sofinfo.max_horizontal_sampling);
+            int p2block_h = i / 8;
+            int p2block_w = j / 8;
             for (int id = 0; id < 3; id++) {
-                int p2block_h = 
+                float map_block_in_h =
+                    1.0 * sofinfo.component_infos[id].vertical_sampling / sofinfo.max_vertical_sampling;
+                float map_block_in_w =
+                    1.0 * sofinfo.component_infos[id].horizontal_sampling / sofinfo.max_horizontal_sampling;
+                int block_h = p2block_h * map_block_in_h;
+                int block_w = p2block_w * map_block_in_w;
+                // printf("pixel %d,%d maps to block %d,%d, ele %d,%d\n", i, j, block_h, block_w, (i % 8), (j % 8));
+                YCbCr[id] =
+                    images[idx].mcus.mcu[id][block_h * (mcu_w * sofinfo.component_infos[id].horizontal_sampling) +
+                                             block_w][(i % 8) * 8 + (j % 8)];
             }
+            RGBPix rgb;
+            rgb.r = chomp(YCbCr[0] + 1.402 * YCbCr[2] + 128);
+            rgb.g = chomp(YCbCr[0] - 0.34414 * YCbCr[1] - 0.71414 * YCbCr[2] + 128.0);
+            rgb.b = chomp(YCbCr[0] + 1.772 * YCbCr[1] + 128.0);
+            images[idx].rgb[i * sofinfo.width + j] = rgb;
         }
     }
 }
-
+void JPEGDec::Dump(size_t idx, const string &fname) {
+    std::ofstream of(fname, std::ios::binary);
+    of << images[idx].sof.height << std::endl;
+    of << images[idx].sof.width << std::endl;
+    for (int i = 0; i < images[idx].sof.height; i++) {
+        for (int j = 0; j < images[idx].sof.width; j++) {
+            int off = i * images[idx].sof.width + j;
+            of << std::to_string(images[idx].rgb[off].r) << " " << std::to_string(images[idx].rgb[off].g) << " "
+               << std::to_string(images[idx].rgb[off].b) << "\n";
+        }
+    }
+    of.close();
+}
 }  // namespace jpeg_dec
 
 int main(int argc, char **argv) {
@@ -593,5 +617,6 @@ int main(int argc, char **argv) {
     jpeg_dec.ZigZag(0);
     jpeg_dec.IDCT(0);
     jpeg_dec.toRGB(0);
+    jpeg_dec.Dump(0, "/tmp/out.bin");
     return 0;
 }

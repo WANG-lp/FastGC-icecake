@@ -97,6 +97,7 @@ class JPEGDec {
     void ZigZag(size_t idx);
     void IDCT(size_t idx);
     void toRGB(size_t idx);
+    void Dump(size_t idx, const string &fname);
 
    private:
     uint8_t get_a_bit(size_t idx);
