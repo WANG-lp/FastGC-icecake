@@ -99,6 +99,8 @@ class JPEGDec {
     void toRGB(size_t idx);
     void Dump(size_t idx, const string &fname);
 
+    Image_struct get_imgInfo(size_t idx);
+
    private:
     uint8_t get_a_bit(size_t idx);
     float read_value(size_t idx, uint8_t code_len);

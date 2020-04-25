@@ -576,6 +576,8 @@ void JPEGDec::toRGB(size_t idx) {
             int p2block_h = i / 8;
             int p2block_w = j / 8;
             for (int id = 0; id < 3; id++) {
+                int p2mcu_h = p2block_h / sofinfo.component_infos[id].vertical_sampling;
+                int p2mcu_w = p2block_w / sofinfo.component_infos[id].horizontal_sampling;
                 float map_block_in_h =
                     1.0 * sofinfo.component_infos[id].vertical_sampling / sofinfo.max_vertical_sampling;
                 float map_block_in_w =
@@ -608,15 +610,5 @@ void JPEGDec::Dump(size_t idx, const string &fname) {
     }
     of.close();
 }
+Image_struct JPEGDec::get_imgInfo(size_t idx) { return images[idx]; }
 }  // namespace jpeg_dec
-
-int main(int argc, char **argv) {
-    jpeg_dec::JPEGDec jpeg_dec(argv[1]);
-    jpeg_dec.Parser(0);
-    jpeg_dec.Dequantize(0);
-    jpeg_dec.ZigZag(0);
-    jpeg_dec.IDCT(0);
-    jpeg_dec.toRGB(0);
-    jpeg_dec.Dump(0, "/tmp/out.bin");
-    return 0;
-}

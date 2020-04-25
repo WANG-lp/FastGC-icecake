@@ -19,3 +19,7 @@ target_link_libraries(rofs ${FUSE_LIBRARIES})
 
 add_executable(opencv_test opencv_test.cpp)
 target_link_libraries(opencv_test icecake_c OpenMP::OpenMP_CXX)
+
+
+add_executable(test_jpegdec test_jpeg_decoder.cpp)
+target_link_libraries(test_jpegdec jpegdec OpenMP::OpenMP_CXX)
