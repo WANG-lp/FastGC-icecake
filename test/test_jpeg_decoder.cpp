@@ -1,46 +1,64 @@
 #include "../include/jpeg_decoder.hpp"
 
+#include <spdlog/spdlog.h>
 #include <fstream>
 #include <string>
 #include <vector>
-
 using std::string;
 using std::vector;
 const string BASE_DIR = "/mnt/optane-ssd/lipeng/imagenet/";
-void test_jpegdec(const string &fname) {
+void get_block_pos(const string &fname, const string &fout) {
     jpeg_dec::JPEGDec jpeg_dec(fname);
+    auto s_t = jpeg_dec::get_wall_time();
     jpeg_dec.Parser(0);
-    jpeg_dec.Dequantize(0);
-    jpeg_dec.ZigZag(0);
-    jpeg_dec.IDCT(0);
-    jpeg_dec.toRGB(0);
-    jpeg_dec.Dump(0, "/tmp/out.bin");
+    auto t1 = jpeg_dec::get_wall_time();
+    // jpeg_dec.Dequantize(0);
+    // jpeg_dec.ZigZag(0);
+    // jpeg_dec.IDCT(0);
+    // jpeg_dec.toRGB(0);
+    auto t2 = jpeg_dec::get_wall_time();
+    auto imgs = jpeg_dec.get_imgstruct(0);
+    int count = 0;
+
+    std::ofstream of(fout, std::ios::app | std::ofstream::out);
+    of << "==========" << std::endl;
+    of << fname << std::endl;
+    for (const auto &pos : imgs.blockpos) {
+        char str[1024];
+        memset(str, 0, sizeof(str));
+        int n = sprintf(str, "block: %d, dc: %d %d, ac: %d %d\n", count++, pos.dc_pos_byte, pos.dc_pos_bit,
+                        pos.ac_pos_byte, pos.ac_pos_bit);
+        of.write(str, n);
+    }
+    of << std::endl;
+
+    // jpeg_dec.Dump(0, "/tmp/out.bin");
+
+    spdlog::info("parse time: {}us", std::chrono::duration_cast<std::chrono::microseconds>(t1 - s_t).count());
+    spdlog::info("calc time: {}us", std::chrono::duration_cast<std::chrono::microseconds>(t2 - s_t).count());
 }
 
-void get_jpeg_config(const vector<string> &fnames, const string &fout) {
-    std::ofstream fo(fout);
-    for (const auto &f : fnames) {
-        jpeg_dec::JPEGDec jpeg_dec(f);
-        jpeg_dec.Parser(0);
-        const auto &imginfo = jpeg_dec.get_imgInfo(0);
-        fo << f << ": \n";
-        for (int i = 0; i < 3; i++) {
-            fo << std::to_string(imginfo.sof.component_infos[i].horizontal_sampling) << " "
-               << std::to_string(imginfo.sof.component_infos[i].vertical_sampling) << std::endl;
-        }
-    }
+void test_jpegdec(const string &fname) {
+    jpeg_dec::JPEGDec jpeg_dec(fname);
+    auto s_t = jpeg_dec::get_wall_time();
+    jpeg_dec.Parser(0);
+    auto t1 = jpeg_dec::get_wall_time();
+    jpeg_dec.Dequantize(0);
+    jpeg_dec.ZigZag(0);
+    auto other1 = jpeg_dec::get_wall_time();
+    jpeg_dec.IDCT(0);
+    auto other2 = jpeg_dec::get_wall_time();
+    jpeg_dec.toRGB(0);
+    auto t2 = jpeg_dec::get_wall_time();
+    jpeg_dec.Dump(0, "/tmp/out.bin");
+    spdlog::info("parse time: {}us", std::chrono::duration_cast<std::chrono::microseconds>(t1 - s_t).count());
+    spdlog::info("IDCT time: {}us", std::chrono::duration_cast<std::chrono::microseconds>(other2 - other1).count());
+    spdlog::info("Other time: {}us",
+                 std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1 - (other2 - other1)).count());
 }
 
 int main(int argc, char **argv) {
-    vector<string> fnames;
-    std::ifstream fin(argv[1]);
-    std::string str;
-    int count = 0;
-    while (std::getline(fin, str)) {
-        fnames.push_back(BASE_DIR + str);
-        if (count++ > 10)
-            break;
-    }
-    get_jpeg_config(fnames, "finfo.txt");
+    // get_block_pos(argv[1], argv[2]);
+    test_jpegdec(argv[1]);
     return 0;
 }

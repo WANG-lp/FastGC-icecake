@@ -1,10 +1,10 @@
 #pragma once
+#include <chrono>
 #include <cstdint>
 #include <fstream>
 #include <string>
 #include <unordered_map>
 #include <vector>
-
 using std::string;
 using std::vector;
 
@@ -24,7 +24,7 @@ const uint8_t SOS_SYM = 0xDA;   // SOS, start of scan
 const uint8_t COM_SYM = 0xFE;   // comment
 
 uint16_t big_endian_bytes2_uint(void *data);
-
+std::chrono::steady_clock::time_point get_wall_time();
 struct APPinfo {
     vector<uint8_t> identifier = vector<uint8_t>(5);
     uint8_t version_major;
@@ -66,6 +66,12 @@ struct RGBPix {
     uint8_t g;
     uint8_t b;
 };
+struct BlockPos {
+    uint32_t dc_pos_byte;
+    uint8_t dc_pos_bit;
+    uint32_t ac_pos_byte;
+    uint8_t ac_pos_bit;
+};
 struct Image_struct {
     APPinfo app0;
     vector<vector<float>> dqt_tables;
@@ -74,6 +80,7 @@ struct Image_struct {
     vector<uint8_t> table_mapping_dc;
     vector<uint8_t> table_mapping_ac;
     MCUs mcus;
+    vector<BlockPos> blockpos;
     float last_dc[3];
     vector<RGBPix> rgb;
 
@@ -93,13 +100,14 @@ class JPEGDec {
     size_t Parser_DHT(size_t idx, uint8_t *data_ptr);
     size_t Parser_SOS(size_t idx, uint8_t *data_ptr);
     size_t Parser_MCUs(size_t idx, uint8_t *data_ptr);
+
     void Dequantize(size_t idx);
     void ZigZag(size_t idx);
     void IDCT(size_t idx);
     void toRGB(size_t idx);
     void Dump(size_t idx, const string &fname);
 
-    Image_struct get_imgInfo(size_t idx);
+    Image_struct get_imgstruct(size_t idx);
 
    private:
     uint8_t get_a_bit(size_t idx);

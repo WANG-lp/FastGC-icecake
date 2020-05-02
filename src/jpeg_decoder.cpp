@@ -17,6 +17,11 @@ void printBits(size_t const size, void const *const ptr) {
     puts("");
 }
 
+std::chrono::steady_clock::time_point get_wall_time() {
+    std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
+    return begin;
+}
+
 void print_app0(APPinfo &app0) {
     spdlog::info("App0:");
     spdlog::info("\tmajor_version: {}, minor_version: {}", app0.version_major, app0.version_minor);
@@ -103,7 +108,17 @@ void JPEGDec::Parser(size_t idx) {
                 spdlog::info("SOS, begin data, offset: {}", off);
                 off += Parser_SOS(idx, data[idx].data() + off + 1);
                 off++;
+                auto t_s = get_wall_time();
                 off += Parser_MCUs(idx, data[idx].data() + off);
+                // off += Scan_Blocks(idx, data[idx].data() + off);
+                spdlog::info("huffman decoding time: {}us",
+                             std::chrono::duration_cast<std::chrono::microseconds>(get_wall_time() - t_s).count());
+
+                break;
+            }
+            case COM_SYM: {
+                spdlog::info("COM, begin data, offset: {}", off);
+                off++;
                 break;
             }
             default: {
@@ -322,8 +337,9 @@ void JPEGDec::set_up_bit_stream(size_t idx, uint8_t *init_ptr) {
 }
 uint8_t JPEGDec::get_a_bit(size_t idx) {
     uint8_t ret = 0;
-    if (images[idx].tmp_byte_consume_pos == 0) {  // read one byte
+    if (images[idx].tmp_byte_consume_pos == 0 || images[idx].tmp_byte_consume_pos == 8) {  // read one byte
         images[idx].tmp_byte = images[idx].global_data_reamins[0];
+        images[idx].tmp_byte_consume_pos = 0;
         images[idx].global_data_reamins++;
         if (images[idx].tmp_byte == 0xFF) {
             assert(images[idx].global_data_reamins[0] == 0x00);  // 0x00 follows a 0xFF, need to skip it
@@ -336,11 +352,8 @@ uint8_t JPEGDec::get_a_bit(size_t idx) {
         ret = 0;
     }
 
-    if (images[idx].tmp_byte_consume_pos == 7) {
-        images[idx].tmp_byte_consume_pos = 0;
-    } else {
-        images[idx].tmp_byte_consume_pos++;
-    }
+    images[idx].tmp_byte_consume_pos++;
+
     return ret;
 }
 
@@ -399,6 +412,9 @@ size_t JPEGDec::read_block(size_t idx, uint8_t id, size_t block_idx) {
     vector<float> block;
     block.resize(1);
 
+    BlockPos pos;
+    pos.dc_pos_byte = img.global_data_reamins - data[idx].data();
+    pos.dc_pos_bit = img.tmp_byte_consume_pos;
     uint8_t code_len = match_huffman(dc_table, idx);
     if (code_len == 0) {
         block[0] = img.last_dc[id];
@@ -409,6 +425,9 @@ size_t JPEGDec::read_block(size_t idx, uint8_t id, size_t block_idx) {
     // printf("dc value %f\n", block[0]);
     // exit(1);
 
+    pos.ac_pos_byte = img.global_data_reamins - data[idx].data();
+    pos.ac_pos_bit = img.tmp_byte_consume_pos;
+    img.blockpos.push_back(pos);
     // read remain ac values
     uint8_t count = 1;
     while (count < 64) {
@@ -470,6 +489,7 @@ size_t JPEGDec::Parser_MCUs(size_t idx, uint8_t *data_ptr) {
     images[idx].mcus.w_mcu_num = w;
     images[idx].mcus.h_mcu_num = h;
 
+    spdlog::info("mcu start pos: {}", data_raw - data[idx].data());
     set_up_bit_stream(idx, data_raw);
 
     for (uint16_t i = 0; i < h; i++) {
@@ -534,7 +554,9 @@ void JPEGDec::IDCT(size_t idx) {
     auto &comp_info = sofinfo.component_infos;
     for (uint8_t id = 0; id < 3; id++) {
         auto &c_info = comp_info[id];
-        for (auto &vec : images[idx].mcus.mcu[id]) {
+#pragma omp parallel for
+        for (int idx_mcu = 0; idx_mcu < images[idx].mcus.mcu[id].size(); idx_mcu++) {
+            auto &vec = images[idx].mcus.mcu[id][idx_mcu];
             vector<float> tmp_block(64, 0.0f);
             for (int i = 0; i < 8; i++) {
                 for (int j = 0; j < 8; j++) {
@@ -610,5 +632,5 @@ void JPEGDec::Dump(size_t idx, const string &fname) {
     }
     of.close();
 }
-Image_struct JPEGDec::get_imgInfo(size_t idx) { return images[idx]; }
+Image_struct JPEGDec::get_imgstruct(size_t idx) { return images[idx]; }
 }  // namespace jpeg_dec
