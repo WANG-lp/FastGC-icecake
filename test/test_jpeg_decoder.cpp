@@ -44,7 +44,7 @@ void test_jpegdec_scan_block(const string &fname) {
     auto t1 = jpeg_dec::get_wall_time();
     spdlog::info("parse time: {}us", std::chrono::duration_cast<std::chrono::microseconds>(t1 - s_t).count());
     for (int i = 0; i < 10; i++) {
-        uint32_t pos = jpeg_dec.get_imgstruct().blockpos[i];
+        uint32_t pos = jpeg_dec.get_imgstruct().blockpos[i].first;
         printf("block %d, start offset: %d, bit: %d\n", i, pos >> 3, pos & 0x07);
     }
 }
@@ -53,6 +53,8 @@ void test_jpegdec(const string &fname) {
     auto s_t = jpeg_dec::get_wall_time();
     jpeg_dec.Parser();
     auto t1 = jpeg_dec::get_wall_time();
+    jpeg_dec.Decoding_on_BlockOffset();
+    auto t3 = jpeg_dec::get_wall_time();
     jpeg_dec.Dequantize();
     jpeg_dec.ZigZag();
     auto other1 = jpeg_dec::get_wall_time();
@@ -62,6 +64,8 @@ void test_jpegdec(const string &fname) {
     auto t2 = jpeg_dec::get_wall_time();
     jpeg_dec.Dump("/tmp/out.bin");
     spdlog::info("parse time: {}us", std::chrono::duration_cast<std::chrono::microseconds>(t1 - s_t).count());
+    spdlog::info("huffman decoding time: {}us",
+                 std::chrono::duration_cast<std::chrono::microseconds>(t3 - s_t).count());
     spdlog::info("IDCT time: {}us", std::chrono::duration_cast<std::chrono::microseconds>(other2 - other1).count());
     spdlog::info("Other time: {}us",
                  std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1 - (other2 - other1)).count());

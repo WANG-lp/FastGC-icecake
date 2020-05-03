@@ -60,9 +60,10 @@ struct HuffmanTable {
 };
 
 struct MCUs {
-    vector<vector<float>> mcu[3];
+    vector<vector<vector<float>>> mcu;
     uint16_t h_mcu_num;
     uint16_t w_mcu_num;
+    MCUs() { mcu.resize(3); }
 };
 struct RGBPix {
     uint8_t r;
@@ -77,17 +78,35 @@ struct Image_struct {
     vector<uint8_t> table_mapping_dc;
     vector<uint8_t> table_mapping_ac;
     MCUs mcus;
-    vector<uint32_t> blockpos;  // high-29bit for <=512MB offset, low-3bit for 8 bit position in a byte
-    float last_dc[3];
+    vector<std::pair<size_t, uint8_t>> blockpos;  // high-29bit for <=512MB offset, low-3bit for 8 bit position in a byte
+    vector<float> last_dc;
     vector<RGBPix> rgb;
+
+    Image_struct() {
+        for (int i = 0; i < 3; i++) {
+            last_dc.push_back(0.0f);
+        }
+    }
 };
 
 class BitStream {
    public:
-    BitStream(uint8_t *ptr, size_t global_off) : ptr(ptr), pos(0), global_off(global_off) { forward_a_byte(); };
+    BitStream(uint8_t *ptr, uint8_t *base_ptr) : ptr(ptr), pos(0), base_ptr(base_ptr) { forward_a_byte(); };
+    BitStream(uint8_t *ptr, uint8_t bit_off, uint8_t *base_ptr) { init(ptr, bit_off, base_ptr); }
+    void init(uint8_t *ptr_t, uint8_t bit_off_t, uint8_t *base_ptr_t) {
+        this->ptr = ptr_t;
+        this->pos = bit_off_t;
+        this->base_ptr = base_ptr_t;
+        this->cur_ptr = ptr_t;
+        this->ptr++;
+        if (this->cur_ptr[0] == 0xFF) {  // remember to skip 0x00 !
+            assert(this->ptr[0] == 0x00);
+            this->ptr++;
+        }
+    }
     uint8_t get_a_bit() {
         uint8_t ret = 0;
-        if (tmp_byte & (1 << (7 - pos))) {
+        if (cur_ptr[0] & (1 << (7 - pos))) {
             ret = 1;
         }
         pos++;
@@ -121,24 +140,22 @@ class BitStream {
     }
 
     uint8_t *get_ptr() { return ptr; }
-    size_t get_global_offset() { return global_off; }
+    size_t get_global_offset() { return cur_ptr - base_ptr; }
     uint8_t get_bit_offset() { return pos; }
 
    private:
-    uint8_t tmp_byte;
-    uint8_t *ptr;
+    uint8_t *ptr;  // next
     uint8_t pos;
-    size_t global_off;
+    uint8_t *cur_ptr;   // current ptr position
+    uint8_t *base_ptr;  // the base ptr
 
     void forward_a_byte() {
-        tmp_byte = ptr[0];
+        cur_ptr = ptr;
         pos = 0;
         ptr++;
-        global_off++;
-        if (tmp_byte == 0xFF) {  // JPEG: 0xFF folows a 0x00
+        if (cur_ptr[0] == 0xFF) {  // JPEG: 0xFF folows a 0x00
             assert(ptr[0] == 0x00);
             ptr++;
-            global_off++;
         }
     };
 };
