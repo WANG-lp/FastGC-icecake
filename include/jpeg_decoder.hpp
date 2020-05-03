@@ -1,4 +1,5 @@
 #pragma once
+#include <cassert>
 #include <chrono>
 #include <cstdint>
 #include <fstream>
@@ -66,12 +67,6 @@ struct RGBPix {
     uint8_t g;
     uint8_t b;
 };
-struct BlockPos {
-    uint32_t dc_pos_byte;
-    uint8_t dc_pos_bit;
-    uint32_t ac_pos_byte;
-    uint8_t ac_pos_bit;
-};
 struct Image_struct {
     APPinfo app0;
     vector<vector<float>> dqt_tables;
@@ -80,7 +75,7 @@ struct Image_struct {
     vector<uint8_t> table_mapping_dc;
     vector<uint8_t> table_mapping_ac;
     MCUs mcus;
-    vector<BlockPos> blockpos;
+    vector<uint32_t> blockpos;  // high-29bit for <=512MB offset, low-3bit for 8 bit position in a byte
     float last_dc[3];
     vector<RGBPix> rgb;
 
@@ -93,31 +88,94 @@ class JPEGDec {
    public:
     JPEGDec(const string &fname);
     ~JPEGDec();
-    void Parser(size_t idx);
-    size_t Parser_app0(size_t idx, uint8_t *data_ptr);
-    size_t Parser_DQT(size_t idx, uint8_t *data_ptr);
-    size_t Parser_SOF0(size_t idx, uint8_t *data_ptr);
-    size_t Parser_DHT(size_t idx, uint8_t *data_ptr);
-    size_t Parser_SOS(size_t idx, uint8_t *data_ptr);
-    size_t Parser_MCUs(size_t idx, uint8_t *data_ptr);
+    void Parser();
+    size_t Parser_app0(uint8_t *data_ptr);
+    size_t Parser_DQT(uint8_t *data_ptr);
+    size_t Parser_SOF0(uint8_t *data_ptr);
+    size_t Parser_DHT(uint8_t *data_ptr);
+    size_t Parser_SOS(uint8_t *data_ptr);
+    size_t Parser_MCUs(uint8_t *data_ptr);
+    size_t Scan_MCUs(uint8_t *data_ptr);
+    void Decoding_on_BlockOffset();
 
-    void Dequantize(size_t idx);
-    void ZigZag(size_t idx);
-    void IDCT(size_t idx);
-    void toRGB(size_t idx);
-    void Dump(size_t idx, const string &fname);
+    void Dequantize();
+    void ZigZag();
+    void IDCT();
+    void toRGB();
+    void Dump(const string &fname);
 
-    Image_struct get_imgstruct(size_t idx);
+    Image_struct get_imgstruct();
 
    private:
-    uint8_t get_a_bit(size_t idx);
-    float read_value(size_t idx, uint8_t code_len);
-    void set_up_bit_stream(size_t idx, uint8_t *init_ptr);
-    size_t parser_mcu(size_t idx, uint16_t h_mcu_idx, uint16_t w_mcu_idx);
-    size_t read_block(size_t idx, uint8_t id, size_t block_idx);
-    uint8_t match_huffman(std::unordered_map<uint8_t, std::unordered_map<uint16_t, uint8_t>> &map, size_t idx);
-    vector<Image_struct> images;
-    vector<vector<uint8_t>> data;
+    uint8_t get_a_bit();
+    float read_value(uint8_t code_len);
+    void set_up_bit_stream(uint8_t *init_ptr);
+    size_t parser_mcu(uint16_t h_mcu_idx, uint16_t w_mcu_idx);
+    size_t read_block(uint8_t id, size_t block_idx);
+    uint8_t match_huffman(std::unordered_map<uint8_t, std::unordered_map<uint16_t, uint8_t>> &map);
+    Image_struct images;
+    vector<uint8_t> data;
+};
+
+class BitStream {
+   public:
+    BitStream(uint8_t *ptr, size_t global_off) : ptr(ptr), pos(0), global_off(global_off) { forward_a_byte(); };
+    uint8_t get_a_bit() {
+        uint8_t ret = 0;
+        if (tmp_byte & (1 << (7 - pos))) {
+            ret = 1;
+        }
+        pos++;
+        if (pos == 8) {
+            forward_a_byte();
+        }
+        return ret;
+    }
+    float read_value(uint8_t len) {
+        int16_t ret = 1;
+        uint8_t first_bit = get_a_bit();
+        for (uint8_t i = 1; i < len; i++) {
+            uint8_t bit = get_a_bit();
+            ret = ret << 1;
+            if (first_bit == bit) {
+                ret += 1;
+            } else {
+                ret += 0;
+            }
+        }
+        if (first_bit == 0) {
+            ret = -ret;
+        }
+        return (float) ret;
+    }
+
+    void skip_value(uint8_t len) {
+        for (uint8_t i = 0; i < len; i++) {
+            get_a_bit();
+        }
+    }
+
+    uint8_t *get_ptr() { return ptr; }
+    size_t get_global_offset() { return global_off; }
+    uint8_t get_bit_offset() { return pos; }
+
+   private:
+    uint8_t tmp_byte;
+    uint8_t *ptr;
+    uint8_t pos;
+    size_t global_off;
+
+    void forward_a_byte() {
+        tmp_byte = ptr[0];
+        pos = 0;
+        ptr++;
+        global_off++;
+        if (tmp_byte == 0xFF) {  // JPEG: 0xFF folows a 0x00
+            assert(ptr[0] == 0x00);
+            ptr++;
+            global_off++;
+        }
+    };
 };
 
 }  // namespace jpeg_dec
