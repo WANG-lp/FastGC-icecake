@@ -54,6 +54,9 @@ JPEGDec::JPEGDec(const string &fname) {
     data.resize(1);
     data.resize(fsize);
     ifs.read((char *) data.data(), fsize);
+
+    logf.open("/tmp/log.txt", std::ofstream::out | std::ofstream::app);
+    logf << "==========" << fname << "===========" << std::endl;
 }
 JPEGDec::~JPEGDec() {}
 
@@ -325,51 +328,6 @@ size_t JPEGDec::Parser_SOS(uint8_t *data_ptr) {
 
     return ret;
 }
-void JPEGDec::set_up_bit_stream(uint8_t *init_ptr) {
-    images.global_data_reamins = init_ptr;
-    images.tmp_byte = 0;
-    images.tmp_byte_consume_pos = 0;
-    memset(images.last_dc, 0, sizeof(images.last_dc));
-}
-uint8_t JPEGDec::get_a_bit() {
-    uint8_t ret = 0;
-    if (images.tmp_byte_consume_pos == 0 || images.tmp_byte_consume_pos == 8) {  // read one byte
-        images.tmp_byte = images.global_data_reamins[0];
-        images.tmp_byte_consume_pos = 0;
-        images.global_data_reamins++;
-        if (images.tmp_byte == 0xFF) {
-            assert(images.global_data_reamins[0] == 0x00);  // 0x00 follows a 0xFF, need to skip it
-            images.global_data_reamins++;
-        }
-    }
-    if (images.tmp_byte & (1 << (7 - images.tmp_byte_consume_pos))) {
-        ret = 1;
-    } else {
-        ret = 0;
-    }
-
-    images.tmp_byte_consume_pos++;
-
-    return ret;
-}
-
-float JPEGDec::read_value(uint8_t code_len) {
-    int16_t ret = 1;
-    uint8_t first_bit = get_a_bit();
-    for (uint8_t i = 1; i < code_len; i++) {
-        uint8_t bit = get_a_bit();
-        ret = ret << 1;
-        if (first_bit == bit) {
-            ret += 1;
-        } else {
-            ret += 0;
-        }
-    }
-    if (first_bit == 0) {
-        ret = -ret;
-    }
-    return (float) ret;
-}
 
 uint8_t JPEGDec::match_huffman(std::unordered_map<uint8_t, std::unordered_map<uint16_t, uint8_t>> &map) {
 
@@ -378,7 +336,7 @@ uint8_t JPEGDec::match_huffman(std::unordered_map<uint8_t, std::unordered_map<ui
     for (;;) {
         code = (code << 1);
         // code fetch a bit from tmp_byte
-        code += get_a_bit();
+        code += bitStream->get_a_bit();
 
         auto iter = map[bit_len].find(code);
         if (iter != map[bit_len].end()) {
@@ -402,6 +360,7 @@ void printBlock(vector<float> &block) {
     }
 }
 size_t JPEGDec::read_block(uint8_t id, size_t block_idx) {
+    logf << "block:" << std::endl;
     auto &img = images;
     auto &dc_table = img.huffmanTable.dc_tables[img.table_mapping_dc[id]];
     auto &ac_table = img.huffmanTable.ac_tables[img.table_mapping_ac[id]];
@@ -414,7 +373,7 @@ size_t JPEGDec::read_block(uint8_t id, size_t block_idx) {
     if (code_len == 0) {
         block[0] = img.last_dc[id];
     } else {
-        img.last_dc[id] += read_value(code_len);
+        img.last_dc[id] += bitStream->read_value(code_len);
         block[0] = img.last_dc[id];
     }
     // printf("dc value %f\n", block[0]);
@@ -435,7 +394,7 @@ size_t JPEGDec::read_block(uint8_t id, size_t block_idx) {
             }
         } else {
             uint8_t zeros = code_len >> 4;
-            float value = read_value(code_len & 0x0F);
+            float value = bitStream->read_value(code_len & 0x0F);
             for (uint16_t i = 0; i < zeros; i++) {
                 block.push_back(0.0);
                 count++;
@@ -481,14 +440,15 @@ size_t JPEGDec::Parser_MCUs(uint8_t *data_ptr) {
     images.mcus.h_mcu_num = h;
 
     spdlog::info("mcu start pos: {}", data_raw - data.data());
-    set_up_bit_stream(data_raw);
+    // set_up_bit_stream(data_raw);
+    bitStream = std::make_unique<BitStream>(data_raw, data_ptr - data.data());
 
     for (uint16_t i = 0; i < h; i++) {
         for (uint16_t j = 0; j < w; j++) {
             parser_mcu(i, j);
         }
     }
-    return images.global_data_reamins - data_ptr;
+    return bitStream->get_ptr() - data_ptr;
 }
 
 void JPEGDec::Decoding_on_BlockOffset() {

@@ -3,9 +3,11 @@
 #include <chrono>
 #include <cstdint>
 #include <fstream>
+#include <memory>
 #include <string>
 #include <unordered_map>
 #include <vector>
+
 using std::string;
 using std::vector;
 
@@ -78,43 +80,6 @@ struct Image_struct {
     vector<uint32_t> blockpos;  // high-29bit for <=512MB offset, low-3bit for 8 bit position in a byte
     float last_dc[3];
     vector<RGBPix> rgb;
-
-    uint8_t tmp_byte;
-    uint8_t tmp_byte_consume_pos;
-    uint8_t *global_data_reamins;
-};
-
-class JPEGDec {
-   public:
-    JPEGDec(const string &fname);
-    ~JPEGDec();
-    void Parser();
-    size_t Parser_app0(uint8_t *data_ptr);
-    size_t Parser_DQT(uint8_t *data_ptr);
-    size_t Parser_SOF0(uint8_t *data_ptr);
-    size_t Parser_DHT(uint8_t *data_ptr);
-    size_t Parser_SOS(uint8_t *data_ptr);
-    size_t Parser_MCUs(uint8_t *data_ptr);
-    size_t Scan_MCUs(uint8_t *data_ptr);
-    void Decoding_on_BlockOffset();
-
-    void Dequantize();
-    void ZigZag();
-    void IDCT();
-    void toRGB();
-    void Dump(const string &fname);
-
-    Image_struct get_imgstruct();
-
-   private:
-    uint8_t get_a_bit();
-    float read_value(uint8_t code_len);
-    void set_up_bit_stream(uint8_t *init_ptr);
-    size_t parser_mcu(uint16_t h_mcu_idx, uint16_t w_mcu_idx);
-    size_t read_block(uint8_t id, size_t block_idx);
-    uint8_t match_huffman(std::unordered_map<uint8_t, std::unordered_map<uint16_t, uint8_t>> &map);
-    Image_struct images;
-    vector<uint8_t> data;
 };
 
 class BitStream {
@@ -176,6 +141,38 @@ class BitStream {
             global_off++;
         }
     };
+};
+
+class JPEGDec {
+   public:
+    JPEGDec(const string &fname);
+    ~JPEGDec();
+    void Parser();
+    size_t Parser_app0(uint8_t *data_ptr);
+    size_t Parser_DQT(uint8_t *data_ptr);
+    size_t Parser_SOF0(uint8_t *data_ptr);
+    size_t Parser_DHT(uint8_t *data_ptr);
+    size_t Parser_SOS(uint8_t *data_ptr);
+    size_t Parser_MCUs(uint8_t *data_ptr);
+    size_t Scan_MCUs(uint8_t *data_ptr);
+    void Decoding_on_BlockOffset();
+
+    void Dequantize();
+    void ZigZag();
+    void IDCT();
+    void toRGB();
+    void Dump(const string &fname);
+
+    Image_struct get_imgstruct();
+
+   private:
+    size_t parser_mcu(uint16_t h_mcu_idx, uint16_t w_mcu_idx);
+    size_t read_block(uint8_t id, size_t block_idx);
+    uint8_t match_huffman(std::unordered_map<uint8_t, std::unordered_map<uint16_t, uint8_t>> &map);
+    Image_struct images;
+    vector<uint8_t> data;
+    std::unique_ptr<BitStream> bitStream;
+    std::ofstream logf;
 };
 
 }  // namespace jpeg_dec
