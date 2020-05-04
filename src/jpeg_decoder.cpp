@@ -479,8 +479,8 @@ void JPEGDec::Decoding_on_BlockOffset() {
                     for (uint16_t w = 0; w < width; w++) {
                         const auto &blockpos =
                             images.blockpos[(i * ww + j) * mcu_has_blocks + mcu_has_blocks_prefix[id] + h * width + w];
-                        uint32_t pos_in_byte = blockpos.first;
-                        uint8_t pos_in_bit = blockpos.second;
+                        uint32_t pos_in_byte = blockpos >> 3;
+                        uint8_t pos_in_bit = blockpos & 0x07;
                         BitStream bitStream(data.data() + pos_in_byte, pos_in_bit, data.data());
 
                         vector<float> block;
@@ -583,7 +583,8 @@ size_t JPEGDec::Scan_MCUs(uint8_t *data_ptr) {
     }
 
     images.blockpos.resize(ww * hh * mcu_has_blocks);
-    std::fill(images.blockpos.begin(), images.blockpos.end(), std::pair<size_t, uint8_t>{0, 0});
+    std::fill(images.blockpos.begin(), images.blockpos.end(), 0);
+    // std::fill(images.blockpos.begin(), images.blockpos.end(), std::pair<size_t, uint8_t>{0, 0});
 
     for (uint16_t i = 0; i < hh; i++) {                                             // h - mcu
         for (uint16_t j = 0; j < ww; j++) {                                         // w - mcu
@@ -603,14 +604,16 @@ size_t JPEGDec::Scan_MCUs(uint8_t *data_ptr) {
                         // blockpos << 3;
                         // blockpos += bitStream.get_bit_offset() & 0x07;
 
-                        if (images.blockpos[(i * ww + j) * mcu_has_blocks + mcu_has_blocks_prefix[id] + h * width + w]
-                                .first != 0) {
-                            spdlog::error("error blockpos is not zero");
-                        }
-                        images.blockpos[(i * ww + j) * mcu_has_blocks + mcu_has_blocks_prefix[id] + h * width + w]
-                            .first = bitStream.get_global_offset();
-                        images.blockpos[(i * ww + j) * mcu_has_blocks + mcu_has_blocks_prefix[id] + h * width + w]
-                            .second = bitStream.get_bit_offset();
+                        // if (images.blockpos[(i * ww + j) * mcu_has_blocks + mcu_has_blocks_prefix[id] + h * width +
+                        // w]
+                        //         .first != 0) {
+                        //     spdlog::error("error blockpos is not zero");
+                        // }
+                        uint32_t pos = bitStream.get_global_offset();
+                        pos = pos << 3;
+                        pos += bitStream.get_bit_offset();
+                        images.blockpos[(i * ww + j) * mcu_has_blocks + mcu_has_blocks_prefix[id] + h * width + w] =
+                            pos;
 
                         bitStream.init(data.data() + bitStream.get_global_offset(), bitStream.get_bit_offset(),
                                        data.data());

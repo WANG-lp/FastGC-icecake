@@ -78,7 +78,7 @@ struct Image_struct {
     vector<uint8_t> table_mapping_dc;
     vector<uint8_t> table_mapping_ac;
     MCUs mcus;
-    vector<std::pair<size_t, uint8_t>> blockpos;  // high-29bit for <=512MB offset, low-3bit for 8 bit position in a byte
+    vector<uint32_t> blockpos;  // high-29bit for <=512MB offset, low-3bit for 8 bit position in a byte
     vector<float> last_dc;
     vector<RGBPix> rgb;
 

@@ -44,7 +44,7 @@ void test_jpegdec_scan_block(const string &fname) {
     auto t1 = jpeg_dec::get_wall_time();
     spdlog::info("parse time: {}us", std::chrono::duration_cast<std::chrono::microseconds>(t1 - s_t).count());
     for (int i = 0; i < 10; i++) {
-        uint32_t pos = jpeg_dec.get_imgstruct().blockpos[i].first;
+        uint32_t pos = jpeg_dec.get_imgstruct().blockpos[i];
         printf("block %d, start offset: %d, bit: %d\n", i, pos >> 3, pos & 0x07);
     }
 }
