@@ -1,6 +1,11 @@
 #include "../include/jpeg_decoder.hpp"
 #include <spdlog/spdlog.h>
+#include <cereal/archives/binary.hpp>
+#include <cereal/types/memory.hpp>
+#include <cereal/types/unordered_map.hpp>
+#include <cereal/types/vector.hpp>
 #include <cmath>
+#include <sstream>
 namespace jpeg_dec {
 // assumes little endian
 void printBits(size_t const size, void const *const ptr) {
@@ -116,6 +121,7 @@ void JPEGDec::Parser() {
             };
             case SOF0_SYM: {
                 spdlog::info("SOF0(baseline), offset: {}", off);
+                images.sof0_offset = off - 1;  // 0xFFC0 (at 0xFF)
                 off += Parser_SOF0(data.data() + off + 1);
                 break;
             };
@@ -134,9 +140,19 @@ void JPEGDec::Parser() {
             case COM_SYM: {
                 spdlog::info("COM, begin data, offset: {}", off);
                 uint16_t len = big_endian_bytes2_uint(data.data() + off + 1);
-                string com(data.data() + off + 1 + 2, data.data() + off + 1 + len);
+                // string com(data.data() + off + 1 + 2, data.data() + off + 1 + len);
+                // off += 1 + len;
+                spdlog::info("comment len: {}", len);
+                if (data[off + 3] == 0xDD && data[off + 4] == 0xCC) {
+                    spdlog::info("boundary comment found! skip scan!");
+                    std::stringstream iss(string(data.data() + off + 5, data.data() + off + 1 + len),
+                                          std::ios::in | std::ios::binary);
+                    cereal::BinaryInputArchive iarchive(iss);
+                    iarchive(images.recordFileds);
+                    images.recordFileds.scan_finish = true;
+                    images.recordFileds.offset = 2 + len;
+                }
                 off += 1 + len;
-                spdlog::info("comment: {}", com);
                 break;
             }
             default: {
@@ -468,8 +484,9 @@ size_t JPEGDec::Parser_MCUs(uint8_t *data_ptr) {
 }
 
 void JPEGDec::Decoding_on_BlockOffset() {
+    // spdlog::warn("decoding on block offset");
     auto &img = images;
-    if (img.blockpos.size() == 0) {
+    if (!img.recordFileds.scan_finish || img.recordFileds.blockpos.size() == 0) {
         spdlog::error("Please scan block boundaries first!");
         exit(1);
     }
@@ -492,10 +509,15 @@ void JPEGDec::Decoding_on_BlockOffset() {
 
                 for (uint16_t h = 0; h < height; h++) {
                     for (uint16_t w = 0; w < width; w++) {
+                        // spdlog::warn("blockpos size: {}", images.recordFileds.blockpos.size());
                         const auto &blockpos =
-                            images.blockpos[(i * ww + j) * mcu_has_blocks + mcu_has_blocks_prefix[id] + h * width + w];
-                        uint32_t pos_in_byte = blockpos >> 3;
+                            images.recordFileds
+                                .blockpos[(i * ww + j) * mcu_has_blocks + mcu_has_blocks_prefix[id] + h * width + w];
+                        uint32_t pos_in_byte = (blockpos >> 3) + images.recordFileds.offset;
                         uint8_t pos_in_bit = blockpos & 0x07;
+                        // spdlog::warn("pos in byte: {}, pos in bit: {}", pos_in_byte - images.recordFileds.offset,
+                        //  pos_in_bit);
+                        // exit(1);
                         BitStream bitStream(data.data() + pos_in_byte, pos_in_bit, data.data());
 
                         vector<float> block;
@@ -508,6 +530,7 @@ void JPEGDec::Decoding_on_BlockOffset() {
                             const auto &iter = dc_table[tmp_codeword_len].find(tmp_codeword);
                             if (iter != dc_table[tmp_codeword_len].end()) {  // found
                                 uint8_t dc_value = iter->second;
+                                assert(dc_value <= 32);  // a float value
                                 if (dc_value == 0) {
                                     block[0] = img.last_dc[id];
                                 } else {
@@ -584,7 +607,10 @@ size_t JPEGDec::Scan_MCUs(uint8_t *data_ptr) {
     spdlog::info("width has {} MCUs, height has {} MCUs", ww, hh);
     images.mcus.w_mcu_num = ww;
     images.mcus.h_mcu_num = hh;
-
+    if (images.recordFileds.scan_finish) {
+        spdlog::info("already read boundary from file");
+        return 1;
+    }
     spdlog::info("mcu start pos: {}", data_raw - data.data());
 
     BitStream bitStream(data_raw, data.data());
@@ -597,9 +623,7 @@ size_t JPEGDec::Scan_MCUs(uint8_t *data_ptr) {
             img.sof.component_infos[id].horizontal_sampling * img.sof.component_infos[id].vertical_sampling;
     }
 
-    images.blockpos.resize(ww * hh * mcu_has_blocks);
-    std::fill(images.blockpos.begin(), images.blockpos.end(), 0);
-    // std::fill(images.blockpos.begin(), images.blockpos.end(), std::pair<size_t, uint8_t>{0, 0});
+    images.recordFileds.blockpos.resize(ww * hh * mcu_has_blocks);
 
     for (uint16_t i = 0; i < hh; i++) {                                             // h - mcu
         for (uint16_t j = 0; j < ww; j++) {                                         // w - mcu
@@ -615,20 +639,12 @@ size_t JPEGDec::Scan_MCUs(uint8_t *data_ptr) {
                         vector<float> block;
                         block.resize(1);
 
-                        // uint32_t blockpos = bitStream.get_global_offset();
-                        // blockpos << 3;
-                        // blockpos += bitStream.get_bit_offset() & 0x07;
-
-                        // if (images.blockpos[(i * ww + j) * mcu_has_blocks + mcu_has_blocks_prefix[id] + h * width +
-                        // w]
-                        //         .first != 0) {
-                        //     spdlog::error("error blockpos is not zero");
-                        // }
                         uint32_t pos = bitStream.get_global_offset();
-                        pos = pos << 3;
+                        pos <<= 3;
                         pos += bitStream.get_bit_offset();
-                        images.blockpos[(i * ww + j) * mcu_has_blocks + mcu_has_blocks_prefix[id] + h * width + w] =
-                            pos;
+                        size_t recoredFileds_real_pos =
+                            (i * ww + j) * mcu_has_blocks + mcu_has_blocks_prefix[id] + h * width + w;
+                        images.recordFileds.blockpos[recoredFileds_real_pos] = pos;
 
                         bitStream.init(data.data() + bitStream.get_global_offset(), bitStream.get_bit_offset(),
                                        data.data());
@@ -714,6 +730,7 @@ size_t JPEGDec::Scan_MCUs(uint8_t *data_ptr) {
             }
         }
     }
+    images.recordFileds.scan_finish = true;
     return bitStream.get_ptr() - data_ptr;
 }
 
@@ -850,25 +867,30 @@ void JPEGDec::Dump(const string &fname) {
 }
 
 void JPEGDec::WriteBoundarytoFile(const string &fname) {
-    size_t off = data.size() - 2;
-    while (off >= 0 && data[off] != MARKER_PREFIX && data[off + 1] != EOI_SYM) {
-        off--;
-    }
-    assert(off >= 0);
+    size_t off = images.sof0_offset;
+    size_t len = 2;  // length size (16bit,64KiB range)
+    std::stringstream ss(std::ios::out | std::ios::binary);
+    cereal::BinaryOutputArchive archive(ss);
+    archive(images.recordFileds);
+    string serialized_str = ss.str();
+    spdlog::info("serialized_str len: {}", serialized_str.size());
+    len += serialized_str.size();  // payload size
 
-    spdlog::info("found EOI of image at {}", off);
-    data.resize(data.size() + 9);
-    data[off + 1] = COM_SYM;
-    bytes2_big_endian_uint(7, data.data() + off + 2);
-    data[off + 4] = 'h';
-    data[off + 5] = 'e';
-    data[off + 6] = 'l';
-    data[off + 7] = 'l';
-    data[off + 8] = 'o';
-    data[off + 9] = MARKER_PREFIX;
-    data[off + 10] = EOI_SYM;
+    len += 2;             // magic code
+    assert(len < 65536);  // maximum 64KB
+    uint8_t tmp_bytes[6];
+    tmp_bytes[0] = MARKER_PREFIX;
+    tmp_bytes[1] = COM_SYM;
+    bytes2_big_endian_uint((uint16_t) len, tmp_bytes + 2);
+    tmp_bytes[4] = 0xDD;  // magic code 1
+    tmp_bytes[5] = 0xCC;  // magic code 2
+
     std::ofstream fout(fname, std::ofstream::binary | std::ofstream::trunc);
-    fout.write((char *) data.data(), data.size());
+    fout.write((char *) data.data(), images.sof0_offset);      // write data before sof0
+    fout.write((char *) tmp_bytes, sizeof(tmp_bytes));         // write comment header
+    fout.write(serialized_str.data(), serialized_str.size());  // write comment body
+    fout.write((char *) data.data() + images.sof0_offset, data.size() - images.sof0_offset);
+
     fout.close();
 }
 Image_struct JPEGDec::get_imgstruct() { return images; }

@@ -23,7 +23,7 @@ void get_block_pos(const string &fname, const string &fout) {
     std::ofstream of(fout, std::ios::app | std::ofstream::out);
     of << "==========" << std::endl;
     of << fname << std::endl;
-    for (const auto &pos : imgs.blockpos) {
+    for (const auto &pos : imgs.recordFileds.blockpos) {
         char str[1024];
         memset(str, 0, sizeof(str));
         // int n = sprintf(str, "block: %d, dc: %d %d, ac: %d %d\n", count++, pos.dc_pos_byte, pos.dc_pos_bit,
@@ -44,7 +44,7 @@ void test_jpegdec_scan_block(const string &fname) {
     auto t1 = jpeg_dec::get_wall_time();
     spdlog::info("parse time: {}us", std::chrono::duration_cast<std::chrono::microseconds>(t1 - s_t).count());
     for (int i = 0; i < 10; i++) {
-        uint32_t pos = jpeg_dec.get_imgstruct().blockpos[i];
+        uint32_t pos = jpeg_dec.get_imgstruct().recordFileds.blockpos[i];
         printf("block %d, start offset: %d, bit: %d\n", i, pos >> 3, pos & 0x07);
     }
 }

@@ -1,4 +1,5 @@
 #pragma once
+
 #include <cassert>
 #include <chrono>
 #include <cstdint>
@@ -25,6 +26,8 @@ const uint8_t DHT_SYM = 0xC4;   // DHT (define huffman table)
 const uint8_t SOF0_SYM = 0xC0;  // start of frame (baseline)
 const uint8_t SOS_SYM = 0xDA;   // SOS, start of scan
 const uint8_t COM_SYM = 0xFE;   // comment
+
+const uint8_t POS_RECORD_SIZE = 12;  // 12 bit per block offset
 
 uint16_t big_endian_bytes2_uint(void *data);
 void bytes2_big_endian_uint(uint16_t len, uint8_t *target_ptr);
@@ -71,6 +74,17 @@ struct RGBPix {
     uint8_t g;
     uint8_t b;
 };
+struct RecoredFileds {
+    bool scan_finish = false;
+    size_t offset = 0;
+    vector<uint32_t> blockpos;  // high-29bit for <=512MB offset, low-3bit for 8 bit position in a byte
+    vector<uint8_t> blockpos_compact;
+    // string str = "hello";
+    template <class Archive>
+    void serialize(Archive &archive) {
+        archive(blockpos);
+    }
+};
 struct Image_struct {
     APPinfo app0;
     vector<vector<float>> dqt_tables;
@@ -79,9 +93,10 @@ struct Image_struct {
     vector<uint8_t> table_mapping_dc;
     vector<uint8_t> table_mapping_ac;
     MCUs mcus;
-    vector<uint32_t> blockpos;  // high-29bit for <=512MB offset, low-3bit for 8 bit position in a byte
+    RecoredFileds recordFileds;
     vector<float> last_dc;
     vector<RGBPix> rgb;
+    size_t sof0_offset = 0;
 
     Image_struct() {
         for (int i = 0; i < 3; i++) {

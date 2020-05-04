@@ -32,6 +32,7 @@ include_directories(3rd-deps/spdlog/include)
 include_directories(3rd-deps/parallel-hashmap)
 include_directories(3rd-deps/DALI)
 include_directories(3rd-deps/pybind11/include)
+include_directories(3rd-deps/cereal/include)
 add_subdirectory(3rd-deps/pybind11)
 add_subdirectory(src)
 
