@@ -132,7 +132,7 @@ void JPEGDec::Parser() {
                 auto t_s = get_wall_time();
                 // off += Parser_MCUs(data.data() + off);
                 off += Scan_MCUs(data.data() + off);
-                spdlog::info("huffman decoding time: {}us",
+                spdlog::info("huffman scan time: {}us",
                              std::chrono::duration_cast<std::chrono::microseconds>(get_wall_time() - t_s).count());
 
                 break;
@@ -486,6 +486,9 @@ size_t JPEGDec::Parser_MCUs(uint8_t *data_ptr) {
 void JPEGDec::Decoding_on_BlockOffset() {
     // spdlog::warn("decoding on block offset");
     auto &img = images;
+    uint16_t ww = img.mcus.w_mcu_num;
+    uint16_t hh = img.mcus.h_mcu_num;
+
     if (!img.recordFileds.scan_finish || img.recordFileds.blockpos.size() == 0) {
         spdlog::error("Please scan block boundaries first!");
         exit(1);
@@ -496,9 +499,11 @@ void JPEGDec::Decoding_on_BlockOffset() {
         mcu_has_blocks_prefix[id] = mcu_has_blocks;
         mcu_has_blocks +=
             img.sof.component_infos[id].horizontal_sampling * img.sof.component_infos[id].vertical_sampling;
+        images.mcus.mcu[id].resize(img.sof.component_infos[id].horizontal_sampling *
+                                   img.sof.component_infos[id].vertical_sampling * ww * hh);
     }
-    uint16_t ww = img.mcus.w_mcu_num;
-    uint16_t hh = img.mcus.h_mcu_num;
+// support sampling:444
+#pragma omp parallel for
     for (uint16_t i = 0; i < hh; i++) {
         for (uint16_t j = 0; j < ww; j++) {
             for (int id = 0; id < 3; id++) {
@@ -532,10 +537,10 @@ void JPEGDec::Decoding_on_BlockOffset() {
                                 uint8_t dc_value = iter->second;
                                 assert(dc_value <= 32);  // a float value
                                 if (dc_value == 0) {
-                                    block[0] = img.last_dc[id];
+                                    block[0] = 0;
                                 } else {
-                                    img.last_dc[id] += bitStream.read_value(dc_value);
-                                    block[0] = img.last_dc[id];
+                                    float dc_float = bitStream.read_value(dc_value);
+                                    block[0] = dc_float;
                                 }
                                 break;
                             }
@@ -587,7 +592,26 @@ void JPEGDec::Decoding_on_BlockOffset() {
                             }
                         }
                         assert(block.size() == 64);
-                        img.mcus.mcu[id].push_back(block);
+                        img.mcus.mcu[id][i * ww + j] = block;
+                    }
+                }
+            }
+        }
+    }
+
+    // restore DC values
+    for (uint16_t i = 0; i < hh; i++) {
+        for (uint16_t j = 0; j < ww; j++) {
+            for (int id = 0; id < 3; id++) {
+                uint16_t height = img.sof.component_infos[id].vertical_sampling;              // h- block
+                uint16_t width = img.sof.component_infos[id].horizontal_sampling;             // w - block
+                auto &dc_table = images.huffmanTable.dc_tables[images.table_mapping_dc[id]];  // dc huffman table
+                auto &ac_table = images.huffmanTable.ac_tables[images.table_mapping_ac[id]];  // ac huffman table
+
+                for (uint16_t h = 0; h < height; h++) {
+                    for (uint16_t w = 0; w < width; w++) {
+                        img.mcus.mcu[id][i * ww + j][0] += images.last_dc[id];
+                        images.last_dc[id] = img.mcus.mcu[id][i * ww + j][0];
                     }
                 }
             }
