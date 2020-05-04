@@ -69,6 +69,7 @@ void test_jpegdec(const string &fname) {
     spdlog::info("IDCT time: {}us", std::chrono::duration_cast<std::chrono::microseconds>(other2 - other1).count());
     spdlog::info("Other time: {}us",
                  std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1 - (other2 - other1)).count());
+    jpeg_dec.WriteBoundarytoFile("/tmp/test_com.jpeg");
 }
 
 int main(int argc, char **argv) {

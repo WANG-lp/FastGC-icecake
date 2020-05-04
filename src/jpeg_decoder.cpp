@@ -43,6 +43,18 @@ uint16_t big_endian_bytes2_uint(void *data) {
 #endif
 }
 
+void bytes2_big_endian_uint(uint16_t len, uint8_t *target_ptr) {
+    unsigned char *b = (unsigned char *) target_ptr;
+    unsigned char *p = (unsigned char *) &len;
+#ifdef _BIG_ENDIAN
+    b[0] = p[0];
+    b[1] = p[1];
+#else
+    b[0] = p[1];
+    b[1] = p[0];
+#endif
+}
+
 JPEGDec::JPEGDec(const string &fname) {
     std::ifstream ifs(fname, std::ios::binary | std::ios::ate);
     if (!ifs.good()) {
@@ -121,7 +133,10 @@ void JPEGDec::Parser() {
             }
             case COM_SYM: {
                 spdlog::info("COM, begin data, offset: {}", off);
-                off++;
+                uint16_t len = big_endian_bytes2_uint(data.data() + off + 1);
+                string com(data.data() + off + 1 + 2, data.data() + off + 1 + len);
+                off += 1 + len;
+                spdlog::info("comment: {}", com);
                 break;
             }
             default: {
@@ -832,6 +847,29 @@ void JPEGDec::Dump(const string &fname) {
         }
     }
     of.close();
+}
+
+void JPEGDec::WriteBoundarytoFile(const string &fname) {
+    size_t off = data.size() - 2;
+    while (off >= 0 && data[off] != MARKER_PREFIX && data[off + 1] != EOI_SYM) {
+        off--;
+    }
+    assert(off >= 0);
+
+    spdlog::info("found EOI of image at {}", off);
+    data.resize(data.size() + 9);
+    data[off + 1] = COM_SYM;
+    bytes2_big_endian_uint(7, data.data() + off + 2);
+    data[off + 4] = 'h';
+    data[off + 5] = 'e';
+    data[off + 6] = 'l';
+    data[off + 7] = 'l';
+    data[off + 8] = 'o';
+    data[off + 9] = MARKER_PREFIX;
+    data[off + 10] = EOI_SYM;
+    std::ofstream fout(fname, std::ofstream::binary | std::ofstream::trunc);
+    fout.write((char *) data.data(), data.size());
+    fout.close();
 }
 Image_struct JPEGDec::get_imgstruct() { return images; }
 }  // namespace jpeg_dec

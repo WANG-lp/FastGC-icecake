@@ -27,6 +27,7 @@ const uint8_t SOS_SYM = 0xDA;   // SOS, start of scan
 const uint8_t COM_SYM = 0xFE;   // comment
 
 uint16_t big_endian_bytes2_uint(void *data);
+void bytes2_big_endian_uint(uint16_t len, uint8_t *target_ptr);
 std::chrono::steady_clock::time_point get_wall_time();
 struct APPinfo {
     vector<uint8_t> identifier = vector<uint8_t>(5);
@@ -173,6 +174,7 @@ class JPEGDec {
     size_t Parser_MCUs(uint8_t *data_ptr);
     size_t Scan_MCUs(uint8_t *data_ptr);
     void Decoding_on_BlockOffset();
+    void WriteBoundarytoFile(const string &fname);
 
     void Dequantize();
     void ZigZag();
