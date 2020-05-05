@@ -77,14 +77,16 @@ struct RGBPix {
 struct RecoredFileds {
     bool scan_finish = false;
     size_t offset = 0;
-    vector<uint32_t> blockpos;  // high-29bit for <=512MB offset, low-3bit for 8 bit position in a byte
+    size_t total_blocks = 0;
+    vector<std::pair<size_t, uint8_t>> blockpos;
     vector<uint8_t> blockpos_compact;
     // string str = "hello";
     template <class Archive>
     void serialize(Archive &archive) {
-        archive(blockpos);
+        archive(offset, total_blocks, blockpos_compact);
     }
 };
+
 struct Image_struct {
     APPinfo app0;
     vector<vector<float>> dqt_tables;
@@ -104,9 +106,39 @@ struct Image_struct {
         }
     }
 };
+class OBitStream {
+   public:
+    OBitStream() : total_bit_count(0) { new_byte(); }
+    ~OBitStream() = default;
+    void write_bit(uint8_t bit) {
+        data[current_byte_offset] |= ((bit & 0x01) << (7 - offset_in_byte));
+        offset_in_byte++;
+        if (offset_in_byte == 8) {
+            new_byte();
+        }
+        total_bit_count++;
+    }
+    vector<uint8_t> get_data() { return data; }
+    size_t total_write_bit() { return total_bit_count; }
+
+   private:
+    uint8_t offset_in_byte;
+    size_t current_byte_offset;
+    size_t total_bit_count;
+    vector<uint8_t> data;
+    void new_byte() {
+        data.push_back(0);
+        current_byte_offset = data.size() - 1;
+        offset_in_byte = 0;
+    }
+};
 
 class BitStream {
    public:
+    BitStream(uint8_t *ptr, bool jpeg_safe) {
+        JPEG_SAFE = jpeg_safe;
+        BitStream(ptr, ptr);
+    };
     BitStream(uint8_t *ptr, uint8_t *base_ptr) : ptr(ptr), pos(0), base_ptr(base_ptr) { forward_a_byte(); };
     BitStream(uint8_t *ptr, uint8_t bit_off, uint8_t *base_ptr) { init(ptr, bit_off, base_ptr); }
     void init(uint8_t *ptr_t, uint8_t bit_off_t, uint8_t *base_ptr_t) {
@@ -115,7 +147,7 @@ class BitStream {
         this->base_ptr = base_ptr_t;
         this->cur_ptr = ptr_t;
         this->ptr++;
-        if (this->cur_ptr[0] == 0xFF) {  // remember to skip 0x00 !
+        if (JPEG_SAFE && this->cur_ptr[0] == 0xFF) {  // remember to skip 0x00 !
             assert(this->ptr[0] == 0x00);
             this->ptr++;
         }
@@ -160,7 +192,8 @@ class BitStream {
     uint8_t get_bit_offset() { return pos; }
 
    private:
-    uint8_t *ptr;  // next
+    bool JPEG_SAFE = true;  // should we skip 0x00 after 0xFF?
+    uint8_t *ptr;           // next
     uint8_t pos;
     uint8_t *cur_ptr;   // current ptr position
     uint8_t *base_ptr;  // the base ptr
@@ -169,7 +202,7 @@ class BitStream {
         cur_ptr = ptr;
         pos = 0;
         ptr++;
-        if (cur_ptr[0] == 0xFF) {  // JPEG: 0xFF folows a 0x00
+        if (JPEG_SAFE && cur_ptr[0] == 0xFF) {  // JPEG: 0xFF folows a 0x00
             assert(ptr[0] == 0x00);
             ptr++;
         }

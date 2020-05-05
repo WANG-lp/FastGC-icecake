@@ -44,8 +44,8 @@ void test_jpegdec_scan_block(const string &fname) {
     auto t1 = jpeg_dec::get_wall_time();
     spdlog::info("parse time: {}us", std::chrono::duration_cast<std::chrono::microseconds>(t1 - s_t).count());
     for (int i = 0; i < 10; i++) {
-        uint32_t pos = jpeg_dec.get_imgstruct().recordFileds.blockpos[i];
-        printf("block %d, start offset: %d, bit: %d\n", i, pos >> 3, pos & 0x07);
+        // uint32_t pos = jpeg_dec.get_imgstruct().recordFileds.blockpos[i];
+        // printf("block %d, start offset: %d, bit: %d\n", i, pos >> 3, pos & 0x07);
     }
 }
 void test_jpegdec(const string &fname) {
@@ -69,7 +69,8 @@ void test_jpegdec(const string &fname) {
     spdlog::info("IDCT time: {}us", std::chrono::duration_cast<std::chrono::microseconds>(other2 - other1).count());
     spdlog::info("Other time: {}us",
                  std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1 - (other2 - other1)).count());
-    jpeg_dec.WriteBoundarytoFile("/tmp/test_com.jpeg");
+    if (fname != "/tmp/test_com.jpeg")
+        jpeg_dec.WriteBoundarytoFile("/tmp/test_com.jpeg");
 }
 
 int main(int argc, char **argv) {

@@ -3,6 +3,7 @@
 #include <cereal/archives/binary.hpp>
 #include <cereal/types/memory.hpp>
 #include <cereal/types/unordered_map.hpp>
+#include <cereal/types/utility.hpp>
 #include <cereal/types/vector.hpp>
 #include <cmath>
 #include <sstream>
@@ -150,7 +151,29 @@ void JPEGDec::Parser() {
                     cereal::BinaryInputArchive iarchive(iss);
                     iarchive(images.recordFileds);
                     images.recordFileds.scan_finish = true;
+                    BitStream bs(images.recordFileds.blockpos_compact.data(), false);
+                    spdlog::info("start to recovery blockpos, total blocks: {}", images.recordFileds.total_blocks);
+                    for (size_t i = 0; i < images.recordFileds.total_blocks; i++) {
+                        size_t off = 0;
+                        for (uint8_t o = 0; o < 9; o++) {
+                            off += bs.get_a_bit();
+                            off << 1;
+                        }
+                        uint8_t off_bit = 0;
+                        for (uint8_t o = 0; o < 3; o++) {
+                            off_bit += bs.get_a_bit();
+                            off_bit << 1;
+                        }
+                        images.recordFileds.blockpos.emplace_back(off, off_bit);
+                    }
+                    spdlog::info("record fileds offset: {}", images.recordFileds.offset);
+                    images.recordFileds.blockpos[0].first = images.recordFileds.offset;
+                    for (size_t i = 1; i < images.recordFileds.total_blocks; i++) {
+                        images.recordFileds.blockpos[i].first += images.recordFileds.blockpos[i - 1].first;
+                    }
+
                     images.recordFileds.offset = 2 + len;
+                    spdlog::info("recovery blockpos ok");
                 }
                 off += 1 + len;
                 break;
@@ -518,8 +541,8 @@ void JPEGDec::Decoding_on_BlockOffset() {
                         const auto &blockpos =
                             images.recordFileds
                                 .blockpos[(i * ww + j) * mcu_has_blocks + mcu_has_blocks_prefix[id] + h * width + w];
-                        uint32_t pos_in_byte = (blockpos >> 3) + images.recordFileds.offset;
-                        uint8_t pos_in_bit = blockpos & 0x07;
+                        uint32_t pos_in_byte = blockpos.first + images.recordFileds.offset;
+                        uint8_t pos_in_bit = blockpos.second;
                         // spdlog::warn("pos in byte: {}, pos in bit: {}", pos_in_byte - images.recordFileds.offset,
                         //  pos_in_bit);
                         // exit(1);
@@ -663,15 +686,15 @@ size_t JPEGDec::Scan_MCUs(uint8_t *data_ptr) {
                         vector<float> block;
                         block.resize(1);
 
-                        uint32_t pos = bitStream.get_global_offset();
-                        pos <<= 3;
-                        pos += bitStream.get_bit_offset();
+                        size_t pos_byte = bitStream.get_global_offset();
+                        uint8_t pos_bit = bitStream.get_bit_offset();
                         size_t recoredFileds_real_pos =
                             (i * ww + j) * mcu_has_blocks + mcu_has_blocks_prefix[id] + h * width + w;
-                        images.recordFileds.blockpos[recoredFileds_real_pos] = pos;
+                        images.recordFileds.blockpos[recoredFileds_real_pos] =
+                            std::pair<size_t, uint8_t>(pos_byte, pos_bit);
 
-                        bitStream.init(data.data() + bitStream.get_global_offset(), bitStream.get_bit_offset(),
-                                       data.data());
+                        // bitStream.init(data.data() + bitStream.get_global_offset(), bitStream.get_bit_offset(),
+                        //                data.data());
 
                         // for each block
                         // first 1 dc, then 63 ac
@@ -891,6 +914,32 @@ void JPEGDec::Dump(const string &fname) {
 }
 
 void JPEGDec::WriteBoundarytoFile(const string &fname) {
+    // compact block pos
+    size_t start_pos = images.recordFileds.blockpos[0].first;
+    images.recordFileds.offset = start_pos;
+    images.recordFileds.total_blocks = images.recordFileds.blockpos.size();
+    for (size_t i = images.recordFileds.blockpos.size() - 1; i > 0; i--) {
+        images.recordFileds.blockpos[i].first -= images.recordFileds.blockpos[i - 1].first;
+    }
+    images.recordFileds.blockpos[0].first = 0;
+    OBitStream obitStream;
+
+    for (size_t i = 0; i < images.recordFileds.blockpos.size(); i++) {
+        size_t write_byte = images.recordFileds.blockpos[i].first;
+        for (uint8_t off = 0; off < 9; off++) {
+            obitStream.write_bit(write_byte & 0x01);
+            write_byte >> 1;
+        }
+        write_byte = images.recordFileds.blockpos[i].second;
+        for (uint8_t off = 0; off < 3; off++) {
+            obitStream.write_bit(write_byte & 0x01);
+            write_byte >> 1;
+        }
+    }
+
+    spdlog::info("total writen bit: {}", obitStream.total_write_bit());
+    images.recordFileds.blockpos_compact = obitStream.get_data();
+
     size_t off = images.sof0_offset;
     size_t len = 2;  // length size (16bit,64KiB range)
     std::stringstream ss(std::ios::out | std::ios::binary);
