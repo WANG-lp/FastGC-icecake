@@ -2,6 +2,8 @@
 *.tensor
 *.txt
 *.bin
+
+*.ipynb
 #vscode
 .vscode
 .history

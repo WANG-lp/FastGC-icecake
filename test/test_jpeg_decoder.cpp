@@ -43,10 +43,17 @@ void test_jpegdec_scan_block(const string &fname) {
     jpeg_dec.Parser();
     auto t1 = jpeg_dec::get_wall_time();
     spdlog::info("parse time: {}us", std::chrono::duration_cast<std::chrono::microseconds>(t1 - s_t).count());
-    for (int i = 0; i < 10; i++) {
-        // uint32_t pos = jpeg_dec.get_imgstruct().recordFileds.blockpos[i];
-        // printf("block %d, start offset: %d, bit: %d\n", i, pos >> 3, pos & 0x07);
+
+    if (fname != "/tmp/test_com.jpeg")
+        jpeg_dec.WriteBoundarytoFile("/tmp/test_com.jpeg");
+
+    spdlog::info("block num: {}", jpeg_dec.get_imgstruct().recordFileds.blockpos.size());
+    for (int i = 0; i < jpeg_dec.get_imgstruct().recordFileds.blockpos.size(); i++) {
+        auto pos = jpeg_dec.get_imgstruct().recordFileds.blockpos[i];
+        printf("block %d, start offset: %ld, bit: %d\n", i, pos.first, pos.second);
     }
+    if (fname != "/tmp/test_com.jpeg")
+        jpeg_dec.WriteBoundarytoFile("/tmp/test_com.jpeg");
 }
 void test_jpegdec(const string &fname) {
     jpeg_dec::JPEGDec jpeg_dec(fname);
@@ -72,10 +79,50 @@ void test_jpegdec(const string &fname) {
     if (fname != "/tmp/test_com.jpeg")
         jpeg_dec.WriteBoundarytoFile("/tmp/test_com.jpeg");
 }
-
+void test_bitstream() {
+    vector<std::pair<size_t, uint8_t>> numbers = {{111, 1}, {321, 2}, {563, 3}, {884, 4}};
+    jpeg_dec::OBitStream obs;
+    for (const auto &e : numbers) {
+        size_t off = e.first;
+        printf("pair_first %d\n", off);
+        size_t mask = 1 << 28;
+        for (int i = 0; i < 29; i++) {
+            obs.write_bit(off & mask ? 1 : 0);
+            mask = mask >> 1;
+        }
+        uint8_t off_bit = e.second;
+        mask = 1 << 2;
+        for (int i = 0; i < 3; i++) {
+            obs.write_bit(off_bit & mask ? 1 : 0);
+            mask = mask >> 1;
+        }
+    }
+    auto data_vec = obs.get_data();
+    printf("data len %d\n", data_vec.size());
+    for (int i = 0; i < data_vec.size(); i++) {
+        printf("%d ", data_vec[i]);
+    }
+    printf("\n");
+    printf("%p\n", data_vec.data());
+    jpeg_dec::BitStream ibs(data_vec.data(), false);
+    for (size_t c = 0; c < numbers.size(); c++) {
+        size_t off = 0;
+        for (int i = 0; i < 29; i++) {
+            off <<= 1;
+            off += ibs.get_a_bit();
+        }
+        uint8_t off_bit = 0;
+        for (int i = 0; i < 3; i++) {
+            off_bit <<= 1;
+            off_bit += ibs.get_a_bit();
+        }
+        spdlog::info("off: {}, bit: {}", off, off_bit);
+    }
+}
 int main(int argc, char **argv) {
     // get_block_pos(argv[1], argv[2]);
     // test_jpegdec_scan_block(argv[1]);
     test_jpegdec(argv[1]);
+    // test_bitstream();
     return 0;
 }

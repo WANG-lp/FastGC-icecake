@@ -152,21 +152,23 @@ void JPEGDec::Parser() {
                     iarchive(images.recordFileds);
                     images.recordFileds.scan_finish = true;
                     BitStream bs(images.recordFileds.blockpos_compact.data(), false);
-                    spdlog::info("start to recovery blockpos, total blocks: {}", images.recordFileds.total_blocks);
+                    // spdlog::info("start to recovery blockpos, total blocks: {}", images.recordFileds.total_blocks);
+                    // printf("%#04X, %#04X, %#04X\n", images.recordFileds.blockpos_compact[0],
+                    //    images.recordFileds.blockpos_compact[1], images.recordFileds.blockpos_compact[2]);
                     for (size_t i = 0; i < images.recordFileds.total_blocks; i++) {
                         size_t off = 0;
-                        for (uint8_t o = 0; o < 9; o++) {
+                        for (uint8_t o = 0; o < POS_RECORD_SEG1; o++) {
+                            off <<= 1;
                             off += bs.get_a_bit();
-                            off << 1;
                         }
                         uint8_t off_bit = 0;
-                        for (uint8_t o = 0; o < 3; o++) {
+                        for (uint8_t o = 0; o < POS_RECORD_SEG2; o++) {
+                            off_bit <<= 1;
                             off_bit += bs.get_a_bit();
-                            off_bit << 1;
                         }
                         images.recordFileds.blockpos.emplace_back(off, off_bit);
                     }
-                    spdlog::info("record fileds offset: {}", images.recordFileds.offset);
+                    // spdlog::info("record fileds offset: {}", images.recordFileds.offset);
                     images.recordFileds.blockpos[0].first = images.recordFileds.offset;
                     for (size_t i = 1; i < images.recordFileds.total_blocks; i++) {
                         images.recordFileds.blockpos[i].first += images.recordFileds.blockpos[i - 1].first;
@@ -688,6 +690,7 @@ size_t JPEGDec::Scan_MCUs(uint8_t *data_ptr) {
 
                         size_t pos_byte = bitStream.get_global_offset();
                         uint8_t pos_bit = bitStream.get_bit_offset();
+
                         size_t recoredFileds_real_pos =
                             (i * ww + j) * mcu_has_blocks + mcu_has_blocks_prefix[id] + h * width + w;
                         images.recordFileds.blockpos[recoredFileds_real_pos] =
@@ -915,25 +918,28 @@ void JPEGDec::Dump(const string &fname) {
 
 void JPEGDec::WriteBoundarytoFile(const string &fname) {
     // compact block pos
-    size_t start_pos = images.recordFileds.blockpos[0].first;
-    images.recordFileds.offset = start_pos;
-    images.recordFileds.total_blocks = images.recordFileds.blockpos.size();
-    for (size_t i = images.recordFileds.blockpos.size() - 1; i > 0; i--) {
-        images.recordFileds.blockpos[i].first -= images.recordFileds.blockpos[i - 1].first;
+    auto blockpos = images.recordFileds.blockpos;
+
+    images.recordFileds.offset = blockpos[0].first;
+    images.recordFileds.total_blocks = blockpos.size();
+    for (size_t i = blockpos.size() - 1; i > 0; i--) {
+        blockpos[i].first -= blockpos[i - 1].first;
     }
-    images.recordFileds.blockpos[0].first = 0;
+    blockpos[0].first = 0;
     OBitStream obitStream;
 
-    for (size_t i = 0; i < images.recordFileds.blockpos.size(); i++) {
-        size_t write_byte = images.recordFileds.blockpos[i].first;
-        for (uint8_t off = 0; off < 9; off++) {
-            obitStream.write_bit(write_byte & 0x01);
-            write_byte >> 1;
+    for (size_t i = 0; i < blockpos.size(); i++) {
+        size_t write_byte = blockpos[i].first;
+        size_t mask = 1 << (POS_RECORD_SEG1 - 1);
+        for (uint8_t off = 0; off < POS_RECORD_SEG1; off++) {
+            obitStream.write_bit(mask & write_byte ? 1 : 0);
+            mask = mask >> 1;
         }
-        write_byte = images.recordFileds.blockpos[i].second;
-        for (uint8_t off = 0; off < 3; off++) {
-            obitStream.write_bit(write_byte & 0x01);
-            write_byte >> 1;
+        write_byte = blockpos[i].second;
+        mask = 1 << (POS_RECORD_SEG2 - 1);
+        for (uint8_t off = 0; off < POS_RECORD_SEG2; off++) {
+            obitStream.write_bit(mask & write_byte ? 1 : 0);
+            mask = mask >> 1;
         }
     }
 

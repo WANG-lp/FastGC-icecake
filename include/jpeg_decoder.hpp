@@ -27,7 +27,8 @@ const uint8_t SOF0_SYM = 0xC0;  // start of frame (baseline)
 const uint8_t SOS_SYM = 0xDA;   // SOS, start of scan
 const uint8_t COM_SYM = 0xFE;   // comment
 
-const uint8_t POS_RECORD_SIZE = 12;  // 12 bit per block offset
+const uint8_t POS_RECORD_SEG1 = 9;  // 9 bit per block offset(record a relative length)
+const uint8_t POS_RECORD_SEG2 = 3;  // 3 bit to record which bit in a byte
 
 uint16_t big_endian_bytes2_uint(void *data);
 void bytes2_big_endian_uint(uint16_t len, uint8_t *target_ptr);
@@ -111,13 +112,16 @@ class OBitStream {
     OBitStream() : total_bit_count(0) { new_byte(); }
     ~OBitStream() = default;
     void write_bit(uint8_t bit) {
-        data[current_byte_offset] |= ((bit & 0x01) << (7 - offset_in_byte));
+        if (bit) {
+            data[current_byte_offset] |= 1 << (7 - offset_in_byte);
+        }
         offset_in_byte++;
         if (offset_in_byte == 8) {
             new_byte();
         }
         total_bit_count++;
     }
+
     vector<uint8_t> get_data() { return data; }
     size_t total_write_bit() { return total_bit_count; }
 
@@ -135,9 +139,8 @@ class OBitStream {
 
 class BitStream {
    public:
-    BitStream(uint8_t *ptr, bool jpeg_safe) {
-        JPEG_SAFE = jpeg_safe;
-        BitStream(ptr, ptr);
+    BitStream(uint8_t *ptr, bool jpeg_safe) : JPEG_SAFE(jpeg_safe), ptr(ptr), pos(0), base_ptr(ptr) {
+        forward_a_byte();
     };
     BitStream(uint8_t *ptr, uint8_t *base_ptr) : ptr(ptr), pos(0), base_ptr(base_ptr) { forward_a_byte(); };
     BitStream(uint8_t *ptr, uint8_t bit_off, uint8_t *base_ptr) { init(ptr, bit_off, base_ptr); }
