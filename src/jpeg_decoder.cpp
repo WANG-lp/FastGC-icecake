@@ -169,12 +169,12 @@ void JPEGDec::Parser() {
                         images.recordFileds.blockpos.emplace_back(off, off_bit);
                     }
                     // spdlog::info("record fileds offset: {}", images.recordFileds.offset);
-                    images.recordFileds.blockpos[0].first = images.recordFileds.offset;
+                    images.recordFileds.blockpos[0].first = images.recordFileds.offset + 2 + len;
                     for (size_t i = 1; i < images.recordFileds.total_blocks; i++) {
                         images.recordFileds.blockpos[i].first += images.recordFileds.blockpos[i - 1].first;
                     }
 
-                    images.recordFileds.offset = 2 + len;
+                    // images.recordFileds.offset = 2 + len;
                     spdlog::info("recovery blockpos ok");
                 }
                 off += 1 + len;
@@ -543,7 +543,7 @@ void JPEGDec::Decoding_on_BlockOffset() {
                         const auto &blockpos =
                             images.recordFileds
                                 .blockpos[(i * ww + j) * mcu_has_blocks + mcu_has_blocks_prefix[id] + h * width + w];
-                        uint32_t pos_in_byte = blockpos.first + images.recordFileds.offset;
+                        uint32_t pos_in_byte = blockpos.first;
                         uint8_t pos_in_bit = blockpos.second;
                         // spdlog::warn("pos in byte: {}, pos in bit: {}", pos_in_byte - images.recordFileds.offset,
                         //  pos_in_bit);
