@@ -73,19 +73,6 @@ int writeBMP(const string &filename, const vector<uint8_t> &chanR, const vector<
     int n;
     int red, green, blue;
 
-    // std::vector<unsigned char> vchanR(height * width);
-    // std::vector<unsigned char> vchanG(height * width);
-    // std::vector<unsigned char> vchanB(height * width);
-    // unsigned char *chanR = vchanR.data();
-    // unsigned char *chanG = vchanG.data();
-    // unsigned char *chanB = vchanB.data();
-    // checkCudaErrors(
-    //     cudaMemcpy2D(chanR, (size_t) width, d_chanR, (size_t) pitchR, width, height, cudaMemcpyDeviceToHost));
-    // checkCudaErrors(
-    //     cudaMemcpy2D(chanG, (size_t) width, d_chanG, (size_t) pitchR, width, height, cudaMemcpyDeviceToHost));
-    // checkCudaErrors(
-    //     cudaMemcpy2D(chanB, (size_t) width, d_chanB, (size_t) pitchR, width, height, cudaMemcpyDeviceToHost));
-
     extrabytes = 4 - ((width * 3) % 4);  // How many bytes of padding to add to each
     // horizontal line - the size of which must
     // be a multiple of 4 bytes.

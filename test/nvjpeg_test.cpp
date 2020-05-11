@@ -4,6 +4,7 @@
 #include <fstream>
 #include <string>
 #include <vector>
+#include "../include/jpeg_decoder.hpp"
 #include "cuda_runtime.h"
 
 using std::string;
@@ -33,6 +34,76 @@ decode_params_t params;
 int dev_malloc(void **p, size_t s) { return (int) cudaMalloc(p, s); }
 int dev_free(void *p) { return (int) cudaFree(p); }
 
+void copy_out(nvjpegImage_t &out_img_t, int width, int height) {
+    // copy out
+    std::vector<unsigned char> vchanR(height * width);
+    std::vector<unsigned char> vchanG(height * width);
+    std::vector<unsigned char> vchanB(height * width);
+    unsigned char *chanR = vchanR.data();
+    unsigned char *chanG = vchanG.data();
+    unsigned char *chanB = vchanB.data();
+    checkCudaErrors(cudaMemcpy2D(chanR, (size_t) width, out_img_t.channel[0], (size_t) out_img_t.pitch[0], width,
+                                 height, cudaMemcpyDeviceToHost));
+    checkCudaErrors(cudaMemcpy2D(chanG, (size_t) width, out_img_t.channel[1], (size_t) out_img_t.pitch[1], width,
+                                 height, cudaMemcpyDeviceToHost));
+    checkCudaErrors(cudaMemcpy2D(chanB, (size_t) width, out_img_t.channel[2], (size_t) out_img_t.pitch[2], width,
+                                 height, cudaMemcpyDeviceToHost));
+    jpeg_dec::writeBMP("/tmp/out.bmp", vchanR, vchanG, vchanB, width, height);
+}
+void decode_decoupled(vector<uint8_t> data) {
+    nvjpegJpegDecoder_t decoder_t;
+    nvjpegJpegState_t decoder_state;
+    nvjpegBufferPinned_t pin_buffer;
+    nvjpegBufferDevice_t dev_buffer;
+    nvjpegDecodeParams_t decode_params;
+
+    checkCudaErrors(nvjpegDecoderCreate(params.nvjpeg_handle, NVJPEG_BACKEND_DEFAULT, &decoder_t));
+    checkCudaErrors(nvjpegDecoderStateCreate(params.nvjpeg_handle, decoder_t, &decoder_state));
+    checkCudaErrors(nvjpegBufferPinnedCreate(params.nvjpeg_handle, nullptr, &pin_buffer));
+    checkCudaErrors(nvjpegBufferDeviceCreate(params.nvjpeg_handle, nullptr, &dev_buffer));
+    checkCudaErrors(nvjpegStateAttachPinnedBuffer(decoder_state, pin_buffer));
+    checkCudaErrors(nvjpegStateAttachDeviceBuffer(decoder_state, dev_buffer));
+    checkCudaErrors(nvjpegDecodeParamsCreate(params.nvjpeg_handle, &decode_params));
+    checkCudaErrors(nvjpegDecodeParamsSetOutputFormat(decode_params, NVJPEG_OUTPUT_RGB));
+
+    nvjpegJpegStream_t jpeg_stream;
+    checkCudaErrors(nvjpegJpegStreamCreate(params.nvjpeg_handle, &jpeg_stream));
+    checkCudaErrors(nvjpegJpegStreamParse(params.nvjpeg_handle, data.data(), data.size(), 1, 0, jpeg_stream));
+
+    nvjpegImage_t out_img_t;
+    unsigned int nCom, widths[4], heights[4];
+    checkCudaErrors(nvjpegJpegStreamGetComponentsNum(jpeg_stream, &nCom));
+    spdlog::info("total channel {}", nCom);
+    for (auto i = 0; i < nCom; i++) {
+        checkCudaErrors(nvjpegJpegStreamGetComponentDimensions(jpeg_stream, i, &widths[i], &heights[i]));
+        spdlog::info("ch:{}, width: {}, height: {}", i, widths[i], heights[i]);
+    }
+    for (int c = 0; c < nCom; c++) {
+        int aw = widths[c];
+        int ah = heights[c];
+        int sz = aw * ah;
+        out_img_t.pitch[c] = aw;
+        checkCudaErrors(cudaMalloc(&out_img_t.channel[c], sz));
+    }
+    cudaEvent_t start, stop;
+    float milliseconds = 0;
+    cudaEventCreate(&start);
+    cudaEventCreate(&stop);
+
+    cudaEventRecord(start);
+    checkCudaErrors(nvjpegDecodeJpegHost(params.nvjpeg_handle, decoder_t, decoder_state, decode_params, jpeg_stream));
+    cudaEventRecord(stop);
+    cudaEventSynchronize(stop);
+    cudaEventElapsedTime(&milliseconds, start, stop);
+    spdlog::info("decodeJpegHost time {}ms", milliseconds);
+
+    checkCudaErrors(
+        nvjpegDecodeJpegTransferToDevice(params.nvjpeg_handle, decoder_t, decoder_state, jpeg_stream, params.stream));
+    checkCudaErrors(nvjpegDecodeJpegDevice(params.nvjpeg_handle, decoder_t, decoder_state, &out_img_t, params.stream));
+    checkCudaErrors(cudaStreamSynchronize(params.stream));
+    copy_out(out_img_t, widths[0], heights[0]);
+}
+
 void decode_image(vector<uint8_t> data) {
 
     int nCom;
@@ -46,6 +117,8 @@ void decode_image(vector<uint8_t> data) {
     }
 
     nvjpegImage_t out_img_t;
+    int width = widths[0];
+    int height = heights[0];
     // realloc output buffer if required
     for (int c = 0; c < nCom; c++) {
         int aw = widths[c];
@@ -55,9 +128,21 @@ void decode_image(vector<uint8_t> data) {
         checkCudaErrors(cudaMalloc(&out_img_t.channel[c], sz));
     }
 
+    cudaEvent_t start, stop;
+    cudaEventCreate(&start);
+    cudaEventCreate(&stop);
+
+    cudaEventRecord(start);
     checkCudaErrors(nvjpegDecode(params.nvjpeg_handle, params.nvjpeg_state, data.data(), data.size(), NVJPEG_OUTPUT_RGB,
                                  &out_img_t, params.stream));
+    cudaEventRecord(stop);
+    cudaEventSynchronize(stop);
     checkCudaErrors(cudaStreamSynchronize(params.stream));
+
+    float milliseconds = 0;
+    cudaEventElapsedTime(&milliseconds, start, stop);
+    spdlog::info("decode time {}ms", milliseconds);
+    copy_out(out_img_t, width, height);
 }
 
 int main(int argc, char **argv) {
@@ -89,7 +174,7 @@ int main(int argc, char **argv) {
     image_data.resize(fsize);
     ifs.read((char *) image_data.data(), fsize);
 
-    decode_image(image_data);
+    decode_decoupled(image_data);
 
     // checkCudaErrors(nvjpegJpegStateCreate(params.nvjpeg_handle, &params.nvjpeg_state));
     // checkCudaErrors(

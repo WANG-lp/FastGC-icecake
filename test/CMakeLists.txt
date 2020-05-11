@@ -30,4 +30,4 @@ add_executable(test_jpegdec test_jpeg_decoder.cpp)
 target_link_libraries(test_jpegdec jpegdec OpenMP::OpenMP_CXX)
 
 CUDA_ADD_EXECUTABLE(test_nvjpeg nvjpeg_test.cpp)
-target_link_libraries(test_nvjpeg OpenMP::OpenMP_CXX ${NVJPEG_LIBRARY} ${CUDA_LIBRARIES} /usr/local/cuda/lib64/libculibos.a)
+target_link_libraries(test_nvjpeg jpegdec OpenMP::OpenMP_CXX ${NVJPEG_LIBRARY} ${CUDA_LIBRARIES} /usr/local/cuda/lib64/libculibos.a)
