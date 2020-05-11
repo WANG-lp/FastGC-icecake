@@ -32,7 +32,8 @@ const uint8_t POS_RECORD_SEG2 = 3;  // 3 bit to record which bit in a byte
 
 uint16_t big_endian_bytes2_uint(void *data);
 void bytes2_big_endian_uint(uint16_t len, uint8_t *target_ptr);
-void write_bmp();
+int writeBMP(const string &filename, const vector<uint8_t> &chanR, const vector<uint8_t> &chanG,
+             const vector<uint8_t> &chanB, int width, int height);
 std::chrono::steady_clock::time_point get_wall_time();
 struct APPinfo {
     vector<uint8_t> identifier = vector<uint8_t>(5);

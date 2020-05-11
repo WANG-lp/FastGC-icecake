@@ -69,7 +69,7 @@ void test_jpegdec(const string &fname) {
     auto other2 = jpeg_dec::get_wall_time();
     jpeg_dec.toRGB();
     auto t2 = jpeg_dec::get_wall_time();
-    jpeg_dec.Dump("/tmp/out.bin");
+    jpeg_dec.Dump("/tmp/out.bmp");
     spdlog::info("parse time: {}us", std::chrono::duration_cast<std::chrono::microseconds>(t1 - s_t).count());
     spdlog::info("huffman decoding time: {}us",
                  std::chrono::duration_cast<std::chrono::microseconds>(t3 - s_t).count());
