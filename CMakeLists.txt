@@ -19,8 +19,8 @@ set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 
 option(DEBUG_MODE "build in debug mode" OFF)
-option(BUILD_TEST "build tests" ON)
-option(BUILD_DALI_PLUGIN "build dali plugin" ON)
+option(BUILD_TEST "build tests" OFF)
+option(BUILD_DALI_PLUGIN "build dali plugin" OFF)
 
 if (DEBUG_MODE)
     add_compile_options(-g)
