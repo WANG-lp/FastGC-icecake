@@ -48,7 +48,7 @@ void copy_out(nvjpegImage_t &out_img_t, int width, int height) {
                                  height, cudaMemcpyDeviceToHost));
     checkCudaErrors(cudaMemcpy2D(chanB, (size_t) width, out_img_t.channel[2], (size_t) out_img_t.pitch[2], width,
                                  height, cudaMemcpyDeviceToHost));
-    jpeg_dec::writeBMP("/tmp/out.bmp", vchanR, vchanG, vchanB, width, height);
+    jpeg_dec::writeBMP("/tmp/out.bmp", chanR, chanG, chanB, width, height);
 }
 void decode_decoupled(vector<uint8_t> data) {
     nvjpegJpegDecoder_t decoder_t;

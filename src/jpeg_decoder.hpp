@@ -33,8 +33,8 @@ struct RecoredFileds;
 
 uint16_t big_endian_bytes2_uint(void *data);
 void bytes2_big_endian_uint(uint16_t len, uint8_t *target_ptr);
-int writeBMP(const string &filename, const vector<uint8_t> &chanR, const vector<uint8_t> &chanG,
-             const vector<uint8_t> &chanB, int width, int height);
+int writeBMP(const char *filename, const unsigned char *chanR, const unsigned char *chanG, const unsigned char *chanB,
+             int width, int height);
 RecoredFileds unpack_jpeg_comment_section(char *data, size_t length, size_t *out_length);
 std::chrono::steady_clock::time_point get_wall_time();
 struct APPinfo {

@@ -16,7 +16,8 @@ struct block_offset_s {
 };
 
 block_offset_s* unpack_jpeg_comment_section(char* data, size_t length, size_t* out_num_element);
-
+int writeBMP(const char* filename, const unsigned char* chanR, const unsigned char* chanG, const unsigned char*& chanB,
+             int width, int height);
 #ifdef __cplusplus
 }
 #endif

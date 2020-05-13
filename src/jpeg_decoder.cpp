@@ -97,8 +97,8 @@ RecoredFileds unpack_jpeg_comment_section(char *data, size_t length, size_t *out
 }
 
 // write bmp, input - RGB, device
-int writeBMP(const string &filename, const vector<uint8_t> &chanR, const vector<uint8_t> &chanG,
-             const vector<uint8_t> &chanB, int width, int height) {
+int writeBMP(const char *filename, const unsigned char *chanR, const unsigned char *chanG, const unsigned char *chanB,
+             int width, int height) {
     unsigned int headers[13];
     FILE *outfile;
     int extrabytes;
@@ -138,7 +138,7 @@ int writeBMP(const string &filename, const vector<uint8_t> &chanR, const vector<
     headers[11] = 0;          // biClrUsed
     headers[12] = 0;          // biClrImportant
 
-    if (!(outfile = fopen(filename.c_str(), "wb"))) {
+    if (!(outfile = fopen(filename, "wb"))) {
         std::cerr << "Cannot open file: " << filename << std::endl;
         return 1;
     }
@@ -1055,7 +1055,7 @@ void JPEGDec::Dump(const string &fname) {
             chanB[off] = images.rgb[off].b;
         }
     }
-    writeBMP(fname, chanR, chanG, chanB, images.sof.width, images.sof.height);
+    writeBMP(fname.c_str(), chanR.data(), chanG.data(), chanB.data(), images.sof.width, images.sof.height);
 }
 
 void JPEGDec::WriteBoundarytoFile(const string &fname) {
