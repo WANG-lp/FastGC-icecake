@@ -4,7 +4,7 @@
 #include <fstream>
 #include <string>
 #include <vector>
-#include "../include/jpeg_decoder.hpp"
+#include "../src/jpeg_decoder.hpp"
 #include "cuda_runtime.h"
 
 using std::string;
@@ -57,7 +57,9 @@ void decode_decoupled(vector<uint8_t> data) {
     nvjpegBufferDevice_t dev_buffer;
     nvjpegDecodeParams_t decode_params;
 
-    checkCudaErrors(nvjpegDecoderCreate(params.nvjpeg_handle, NVJPEG_BACKEND_DEFAULT, &decoder_t));
+    checkCudaErrors(nvjpegDecoderCreate(params.nvjpeg_handle, NVJPEG_BACKEND_HYBRID, &decoder_t));
+    // checkCudaErrors(nvjpegDecoderCreate(params.nvjpeg_handle, NVJPEG_BACKEND_GPU_HYBRID, &decoder_t));
+
     checkCudaErrors(nvjpegDecoderStateCreate(params.nvjpeg_handle, decoder_t, &decoder_state));
     checkCudaErrors(nvjpegBufferPinnedCreate(params.nvjpeg_handle, nullptr, &pin_buffer));
     checkCudaErrors(nvjpegBufferDeviceCreate(params.nvjpeg_handle, nullptr, &dev_buffer));
@@ -97,9 +99,20 @@ void decode_decoupled(vector<uint8_t> data) {
     cudaEventElapsedTime(&milliseconds, start, stop);
     spdlog::info("decodeJpegHost time {}ms", milliseconds);
 
+    cudaEventRecord(start);
     checkCudaErrors(
         nvjpegDecodeJpegTransferToDevice(params.nvjpeg_handle, decoder_t, decoder_state, jpeg_stream, params.stream));
+    cudaEventRecord(stop);
+    cudaEventSynchronize(stop);
+    cudaEventElapsedTime(&milliseconds, start, stop);
+    spdlog::info("transfer time {}ms", milliseconds);
+
+    cudaEventRecord(start);
     checkCudaErrors(nvjpegDecodeJpegDevice(params.nvjpeg_handle, decoder_t, decoder_state, &out_img_t, params.stream));
+    cudaEventRecord(stop);
+    cudaEventSynchronize(stop);
+    cudaEventElapsedTime(&milliseconds, start, stop);
+    spdlog::info("decodeJpegDevice time {}ms", milliseconds);
     checkCudaErrors(cudaStreamSynchronize(params.stream));
     copy_out(out_img_t, widths[0], heights[0]);
 }

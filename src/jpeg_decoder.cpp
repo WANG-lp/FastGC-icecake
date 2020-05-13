@@ -1,4 +1,4 @@
-#include "../include/jpeg_decoder.hpp"
+#include "jpeg_decoder.hpp"
 #include <spdlog/spdlog.h>
 #include <cereal/archives/binary.hpp>
 #include <cereal/types/memory.hpp>
@@ -59,6 +59,41 @@ void bytes2_big_endian_uint(uint16_t len, uint8_t *target_ptr) {
     b[0] = p[1];
     b[1] = p[0];
 #endif
+}
+
+RecoredFileds unpack_jpeg_comment_section(char *data, size_t length, size_t *out_length) {
+    size_t off = 0;
+
+    RecoredFileds recordFileds;
+
+    std::stringstream iss(string(data, data + length), std::ios::in | std::ios::binary);
+    cereal::BinaryInputArchive iarchive(iss);
+    iarchive(recordFileds);
+
+    BitStream bs(recordFileds.blockpos_compact.data(), false);
+    // spdlog::info("start to recovery blockpos, total blocks: {}", images.recordFileds.total_blocks);
+    // printf("%#04X, %#04X, %#04X\n", images.recordFileds.blockpos_compact[0],
+    //    images.recordFileds.blockpos_compact[1], images.recordFileds.blockpos_compact[2]);
+    for (size_t i = 0; i < recordFileds.total_blocks; i++) {
+        size_t off = 0;
+        for (uint8_t o = 0; o < POS_RECORD_SEG1; o++) {
+            off <<= 1;
+            off += bs.get_a_bit();
+        }
+        uint8_t off_bit = 0;
+        for (uint8_t o = 0; o < POS_RECORD_SEG2; o++) {
+            off_bit <<= 1;
+            off_bit += bs.get_a_bit();
+        }
+        recordFileds.blockpos.emplace_back(off, off_bit);
+    }
+    // spdlog::info("record fileds offset: {}", images.recordFileds.offset);
+    recordFileds.blockpos[0].first = recordFileds.offset + 6 + length;
+    for (size_t i = 1; i < recordFileds.total_blocks; i++) {
+        recordFileds.blockpos[i].first += recordFileds.blockpos[i - 1].first;
+    }
+    *out_length = recordFileds.total_blocks;
+    return recordFileds;
 }
 
 // write bmp, input - RGB, device
@@ -261,36 +296,14 @@ void JPEGDec::Parser() {
                 spdlog::info("comment len: {}", len);
                 if (data[off + 3] == 0xDD && data[off + 4] == 0xCC) {
                     spdlog::info("boundary comment found! skip scan!");
-                    std::stringstream iss(string(data.data() + off + 5, data.data() + off + 1 + len),
-                                          std::ios::in | std::ios::binary);
-                    cereal::BinaryInputArchive iarchive(iss);
-                    iarchive(images.recordFileds);
+                    size_t blocks_num;
+                    images.recordFileds =
+                        unpack_jpeg_comment_section((char *) data.data() + off + 5, len - 4, &blocks_num);
                     images.recordFileds.scan_finish = true;
-                    BitStream bs(images.recordFileds.blockpos_compact.data(), false);
-                    // spdlog::info("start to recovery blockpos, total blocks: {}", images.recordFileds.total_blocks);
-                    // printf("%#04X, %#04X, %#04X\n", images.recordFileds.blockpos_compact[0],
-                    //    images.recordFileds.blockpos_compact[1], images.recordFileds.blockpos_compact[2]);
-                    for (size_t i = 0; i < images.recordFileds.total_blocks; i++) {
-                        size_t off = 0;
-                        for (uint8_t o = 0; o < POS_RECORD_SEG1; o++) {
-                            off <<= 1;
-                            off += bs.get_a_bit();
-                        }
-                        uint8_t off_bit = 0;
-                        for (uint8_t o = 0; o < POS_RECORD_SEG2; o++) {
-                            off_bit <<= 1;
-                            off_bit += bs.get_a_bit();
-                        }
-                        images.recordFileds.blockpos.emplace_back(off, off_bit);
+                    spdlog::info("total blocks: {}", blocks_num);
+                    for (int i = 0; i < 10; i++) {
+                        printf("blocks: %d->%ld\n", i, images.recordFileds.blockpos[i].first);
                     }
-                    // spdlog::info("record fileds offset: {}", images.recordFileds.offset);
-                    images.recordFileds.blockpos[0].first = images.recordFileds.offset + 2 + len;
-                    for (size_t i = 1; i < images.recordFileds.total_blocks; i++) {
-                        images.recordFileds.blockpos[i].first += images.recordFileds.blockpos[i - 1].first;
-                    }
-
-                    // images.recordFileds.offset = 2 + len;
-                    spdlog::info("recovery blockpos ok");
                 }
                 off += 1 + len;
                 break;

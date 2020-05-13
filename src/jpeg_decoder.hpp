@@ -29,11 +29,13 @@ const uint8_t COM_SYM = 0xFE;   // comment
 
 const uint8_t POS_RECORD_SEG1 = 9;  // 9 bit per block offset(record a relative length)
 const uint8_t POS_RECORD_SEG2 = 3;  // 3 bit to record which bit in a byte
+struct RecoredFileds;
 
 uint16_t big_endian_bytes2_uint(void *data);
 void bytes2_big_endian_uint(uint16_t len, uint8_t *target_ptr);
 int writeBMP(const string &filename, const vector<uint8_t> &chanR, const vector<uint8_t> &chanG,
              const vector<uint8_t> &chanB, int width, int height);
+RecoredFileds unpack_jpeg_comment_section(char *data, size_t length, size_t *out_length);
 std::chrono::steady_clock::time_point get_wall_time();
 struct APPinfo {
     vector<uint8_t> identifier = vector<uint8_t>(5);

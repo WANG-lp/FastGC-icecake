@@ -1,4 +1,4 @@
-#include "../include/jpeg_decoder.hpp"
+#include "../src/jpeg_decoder.hpp"
 
 #include <spdlog/spdlog.h>
 #include <fstream>
