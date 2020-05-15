@@ -15,9 +15,11 @@ struct block_offset_s {
     unsigned char bit_offset;
 };
 
-block_offset_s* unpack_jpeg_comment_section(char* data, size_t length, size_t* out_num_element);
+struct block_offset_s* unpack_jpeg_comment_section(char* data, size_t length, size_t* out_num_element);
 int writeBMP(const char* filename, const unsigned char* chanR, const unsigned char* chanG, const unsigned char* chanB,
              int width, int height);
+
+void dumpFile(const char* filename, const char* content, size_t length);
 #ifdef __cplusplus
 }
 #endif

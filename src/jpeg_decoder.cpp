@@ -7,6 +7,7 @@
 #include <cereal/types/vector.hpp>
 #include <cmath>
 #include <sstream>
+#include "../include/jpeg_decoder_export.h"
 namespace jpeg_dec {
 // assumes little endian
 void printBits(size_t const size, void const *const ptr) {
@@ -282,6 +283,7 @@ void JPEGDec::Parser() {
                 off++;
                 auto t_s = get_wall_time();
                 // off += Parser_MCUs(data.data() + off);
+                dumpFile("/tmp/out2.bin", (const char *) data.data() + off, 100);
                 off += Scan_MCUs(data.data() + off);
                 spdlog::info("huffman scan time: {}us",
                              std::chrono::duration_cast<std::chrono::microseconds>(get_wall_time() - t_s).count());

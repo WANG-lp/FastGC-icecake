@@ -40,6 +40,6 @@ if (BUILD_DALI_PLUGIN)
     add_subdirectory(dali-ops)
 endif()
 
-add_library(jpegdec SHARED jpeg_decoder.cpp jpeg_decoder_export.cpp)
+add_library(jpegdec jpeg_decoder.cpp jpeg_decoder_export.cpp)
 target_link_libraries(jpegdec PRIVATE Threads::Threads ${CUDA_LIBRARIES} OpenMP::OpenMP_CXX)
 
