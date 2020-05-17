@@ -9,10 +9,12 @@ extern "C" {
 #endif
 #include <stdbool.h>
 #include <stddef.h>
+#include <stdint.h>
 
 struct block_offset_s {
     size_t byte_offset;
     unsigned char bit_offset;
+    int16_t dc_value;
 };
 
 struct block_offset_s* unpack_jpeg_comment_section(char* data, size_t length, size_t* out_num_element);

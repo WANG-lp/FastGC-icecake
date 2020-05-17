@@ -9,6 +9,7 @@ struct block_offset_s* unpack_jpeg_comment_section(char* data, size_t length, si
     for (size_t i = 0; i < *out_num_element; i++) {
         ret[i].byte_offset = record.blockpos[i].first;
         ret[i].bit_offset = record.blockpos[i].second;
+        ret[i].dc_value = record.dc_value[i];
     }
     return ret;
 }

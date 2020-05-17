@@ -670,9 +670,8 @@ void JPEGDec::Decoding_on_BlockOffset() {
                 for (uint16_t h = 0; h < height; h++) {
                     for (uint16_t w = 0; w < width; w++) {
                         // spdlog::warn("blockpos size: {}", images.recordFileds.blockpos.size());
-                        const auto &blockpos =
-                            images.recordFileds
-                                .blockpos[(i * ww + j) * mcu_has_blocks + mcu_has_blocks_prefix[id] + h * width + w];
+                        size_t real_pos = (i * ww + j) * mcu_has_blocks + mcu_has_blocks_prefix[id] + h * width + w;
+                        const auto &blockpos = images.recordFileds.blockpos[real_pos];
                         uint32_t pos_in_byte = blockpos.first;
                         uint8_t pos_in_bit = blockpos.second;
                         // spdlog::warn("pos in byte: {}, pos in bit: {}", pos_in_byte - images.recordFileds.offset,
@@ -697,6 +696,7 @@ void JPEGDec::Decoding_on_BlockOffset() {
                                     float dc_float = bitStream.read_value(dc_value);
                                     block[0] = dc_float;
                                 }
+                                block[0] = (float) images.recordFileds.dc_value[real_pos];
                                 break;
                             }
                             // not found
@@ -754,24 +754,24 @@ void JPEGDec::Decoding_on_BlockOffset() {
         }
     }
 
-    // restore DC values
-    for (uint16_t i = 0; i < hh; i++) {
-        for (uint16_t j = 0; j < ww; j++) {
-            for (int id = 0; id < 3; id++) {
-                uint16_t height = img.sof.component_infos[id].vertical_sampling;              // h- block
-                uint16_t width = img.sof.component_infos[id].horizontal_sampling;             // w - block
-                auto &dc_table = images.huffmanTable.dc_tables[images.table_mapping_dc[id]];  // dc huffman table
-                auto &ac_table = images.huffmanTable.ac_tables[images.table_mapping_ac[id]];  // ac huffman table
+    // // restore DC values
+    // for (uint16_t i = 0; i < hh; i++) {
+    //     for (uint16_t j = 0; j < ww; j++) {
+    //         for (int id = 0; id < 3; id++) {
+    //             uint16_t height = img.sof.component_infos[id].vertical_sampling;              // h- block
+    //             uint16_t width = img.sof.component_infos[id].horizontal_sampling;             // w - block
+    //             auto &dc_table = images.huffmanTable.dc_tables[images.table_mapping_dc[id]];  // dc huffman table
+    //             auto &ac_table = images.huffmanTable.ac_tables[images.table_mapping_ac[id]];  // ac huffman table
 
-                for (uint16_t h = 0; h < height; h++) {
-                    for (uint16_t w = 0; w < width; w++) {
-                        img.mcus.mcu[id][i * ww + j][0] += images.last_dc[id];
-                        images.last_dc[id] = img.mcus.mcu[id][i * ww + j][0];
-                    }
-                }
-            }
-        }
-    }
+    //             for (uint16_t h = 0; h < height; h++) {
+    //                 for (uint16_t w = 0; w < width; w++) {
+    //                     img.mcus.mcu[id][i * ww + j][0] += images.last_dc[id];
+    //                     images.last_dc[id] = img.mcus.mcu[id][i * ww + j][0];
+    //                 }
+    //             }
+    //         }
+    //     }
+    // }
 }
 
 size_t JPEGDec::Scan_MCUs(uint8_t *data_ptr) {
@@ -803,6 +803,7 @@ size_t JPEGDec::Scan_MCUs(uint8_t *data_ptr) {
     }
 
     images.recordFileds.blockpos.resize(ww * hh * mcu_has_blocks);
+    images.recordFileds.dc_value.resize(ww * hh * mcu_has_blocks);
 
     for (uint16_t i = 0; i < hh; i++) {                                             // h - mcu
         for (uint16_t j = 0; j < ww; j++) {                                         // w - mcu
@@ -837,13 +838,13 @@ size_t JPEGDec::Scan_MCUs(uint8_t *data_ptr) {
                             const auto &iter = dc_table[tmp_codeword_len].find(tmp_codeword);
                             if (iter != dc_table[tmp_codeword_len].end()) {  // found
                                 uint8_t dc_value = iter->second;
-                                bitStream.skip_value(dc_value);
-                                // if (dc_value == 0) {
-                                //     block[0] = img.last_dc[id];
-                                // } else {
-                                //     img.last_dc[id] += bitStream.read_value(dc_value);
-                                //     block[0] = img.last_dc[id];
-                                // }
+                                if (dc_value == 0) {
+                                    block[0] = img.last_dc[id];
+                                } else {
+                                    img.last_dc[id] += bitStream.read_value(dc_value);
+                                    block[0] = img.last_dc[id];
+                                }
+                                images.recordFileds.dc_value[recoredFileds_real_pos] = (int16_t) block[0];
                                 break;
                             }
                             // not found

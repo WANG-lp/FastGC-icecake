@@ -83,12 +83,13 @@ struct RecoredFileds {
     bool scan_finish = false;
     size_t offset = 0;
     size_t total_blocks = 0;
+    vector<int16_t> dc_value;
     vector<std::pair<size_t, uint8_t>> blockpos;
     vector<uint8_t> blockpos_compact;
     // string str = "hello";
     template <class Archive>
     void serialize(Archive &archive) {
-        archive(offset, total_blocks, blockpos_compact);
+        archive(offset, total_blocks, blockpos_compact, dc_value);
     }
 };
 
@@ -170,7 +171,8 @@ class BitStream {
         }
         return ret;
     }
-    float read_value(uint8_t len) {
+    float read_value(uint8_t len) { return (float) read_value_int16(len); }
+    int16_t read_value_int16(uint8_t len) {
         int16_t ret = 1;
         uint8_t first_bit = get_a_bit();
         for (uint8_t i = 1; i < len; i++) {
@@ -185,7 +187,7 @@ class BitStream {
         if (first_bit == 0) {
             ret = -ret;
         }
-        return (float) ret;
+        return ret;
     }
 
     void skip_value(uint8_t len) {
