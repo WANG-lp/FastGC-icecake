@@ -259,20 +259,24 @@ int main(int argc, char **argv) {
     image_data.resize(fsize);
     ifs.read((char *) image_data.data(), fsize);
 
+    // decode_decoupled(image_data);
+    assert(argc >= 5);
+
+    int thread_num = atoi(argv[2]);
+    int max_iter = atoi(argv[3]);
+    int batch_size = atoi(argv[4]);
+    spdlog::info("thread num: {}", thread_num);
+    spdlog::info("max iter: {}", max_iter);
+    spdlog::info("batch size: {}", batch_size);
+
     vector<vector<uint8_t>> data_batched;
-    data_batched.resize(1024);
+    data_batched.resize(batch_size);
     for (int i = 0; i < data_batched.size(); i++) {
         data_batched[i].resize(image_data.size());
         memcpy(data_batched[i].data(), image_data.data(), image_data.size());
     }
-    decode_batched(data_batched, 40, 10);
-    // decode_decoupled(data_batched[0]);
+    decode_batched(data_batched, thread_num, max_iter);
 
-    // checkCudaErrors(
-    //     nvjpegDecodeBatchedInitialize(params.nvjpeg_handle, params.nvjpeg_state, params.batch_size, 1,
-    //     params.fmt));
-
-    // checkCudaErrors(nvjpegJpegStateDestroy(params.nvjpeg_state));
     checkCudaErrors(nvjpegDestroy(params.nvjpeg_handle));
     return 0;
 }

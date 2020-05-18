@@ -12,12 +12,13 @@ extern "C" {
 #include <stdint.h>
 
 struct block_offset_s {
-    size_t byte_offset;
+    int byte_offset;
     unsigned char bit_offset;
     int16_t dc_value;
+    int data_len;
 };
 
-struct block_offset_s* unpack_jpeg_comment_section(char* data, size_t length, size_t* out_num_element);
+struct block_offset_s* unpack_jpeg_comment_section(char* data, size_t length, size_t* out_num_element, int* data_len);
 int writeBMP(const char* filename, const unsigned char* chanR, const unsigned char* chanG, const unsigned char* chanB,
              int width, int height);
 

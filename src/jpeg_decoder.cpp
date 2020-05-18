@@ -283,7 +283,7 @@ void JPEGDec::Parser() {
                 off++;
                 auto t_s = get_wall_time();
                 // off += Parser_MCUs(data.data() + off);
-                dumpFile("/tmp/out2.bin", (const char *) data.data() + off, 100);
+                // dumpFile("/tmp/out2.bin", (const char *) data.data() + off, 100);
                 off += Scan_MCUs(data.data() + off);
                 spdlog::info("huffman scan time: {}us",
                              std::chrono::duration_cast<std::chrono::microseconds>(get_wall_time() - t_s).count());
@@ -912,6 +912,7 @@ size_t JPEGDec::Scan_MCUs(uint8_t *data_ptr) {
         }
     }
     images.recordFileds.scan_finish = true;
+    images.recordFileds.data_len = bitStream.get_ptr() - data_ptr;
     return bitStream.get_ptr() - data_ptr;
 }
 

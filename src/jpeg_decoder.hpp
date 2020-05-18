@@ -83,13 +83,14 @@ struct RecoredFileds {
     bool scan_finish = false;
     size_t offset = 0;
     size_t total_blocks = 0;
+    int data_len;
     vector<int16_t> dc_value;
     vector<std::pair<size_t, uint8_t>> blockpos;
     vector<uint8_t> blockpos_compact;
     // string str = "hello";
     template <class Archive>
     void serialize(Archive &archive) {
-        archive(offset, total_blocks, blockpos_compact, dc_value);
+        archive(offset, total_blocks, blockpos_compact, dc_value, data_len);
     }
 };
 

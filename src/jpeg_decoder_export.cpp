@@ -3,7 +3,7 @@
 
 #include <fstream>
 
-struct block_offset_s* unpack_jpeg_comment_section(char* data, size_t length, size_t* out_num_element) {
+struct block_offset_s* unpack_jpeg_comment_section(char* data, size_t length, size_t* out_num_element, int* data_len) {
     jpeg_dec::RecoredFileds record = jpeg_dec::unpack_jpeg_comment_section(data, length, out_num_element);
     struct block_offset_s* ret = (struct block_offset_s*) malloc(sizeof(struct block_offset_s) * (*out_num_element));
     for (size_t i = 0; i < *out_num_element; i++) {
@@ -11,6 +11,7 @@ struct block_offset_s* unpack_jpeg_comment_section(char* data, size_t length, si
         ret[i].bit_offset = record.blockpos[i].second;
         ret[i].dc_value = record.dc_value[i];
     }
+    *data_len = record.data_len;
     return ret;
 }
 
