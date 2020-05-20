@@ -26,3 +26,11 @@ void dumpFile(const char* filename, const char* content, size_t length) {
     of.write(content, length);
     of.close();
 }
+
+char* onlineROI(const char* data, size_t length, size_t* out_length, const struct block_offset_s* block_off, int blocks,
+                int ROI_w, int ROI_h, int ROI_x, int ROI_y) {
+    assert(block_off != nullptr);
+
+    *out_length = length;
+    return data;
+}
