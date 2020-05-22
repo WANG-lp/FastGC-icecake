@@ -8,11 +8,11 @@ set(CMAKE_C_STANDARD 11)
 
 set(CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake ${CMAKE_MODULE_PATH}) # To allow CMake to locate our Find*.cmake files
 
-if (CMAKE_CXX_COMPILER_VERSION VERSION_GREATER 7.1)
+#if (CMAKE_CXX_COMPILER_VERSION VERSION_GREATER 7.1)
     # https://github.com/facebook/rocksdb/pull/2699
     # https://stackoverflow.com/questions/25525047/cmake-generator-expression-differentiate-c-c-code
-    add_compile_options($<$<COMPILE_LANGUAGE:CXX>:-faligned-new>)
-endif ()
+    #add_compile_options($<$<COMPILE_LANGUAGE:CXX>:-faligned-new>)
+#endif ()
 
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)

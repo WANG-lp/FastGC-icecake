@@ -44,6 +44,19 @@ void set_sof0(void* jpeg_header_raw, int length, uint8_t* sof0);
 void set_dht(void* jpeg_header_raw, int length, uint8_t* dht);
 void set_sos_1st(void* jpeg_header_raw, int length, uint8_t* sos_1st);
 void set_sos_2nd(void* jpeg_header_raw, int length, uint8_t* sos_2nd);
+void set_block_offsets(void* jpeg_header_raw, struct block_offset_s* block_offs, int length, int data_len);
+void set_jpeg_header_status(void* jpeg_header_raw, uint8_t status);
+
+int get_dqt_table_size(void* jpeg_header_raw);
+uint8_t* get_dqt_table(void* jpeg_header_raw, int id);
+uint8_t* get_sof0_table(void* jpeg_header_raw);
+int get_dht_table_size(void* jpeg_header_raw);
+uint8_t* get_dht_table(void* jpeg_header_raw, int id);
+uint8_t* get_sos_1st(void* jpeg_header_raw);
+uint8_t* get_sos_2nd(void* jpeg_header_raw, int* length);
+struct block_offset_s* get_block_offsets(void* jpeg_header_raw, int* length, int* data_len);
+uint8_t get_jpeg_header_status(void* jpeg_header_raw);
+
 #ifdef __cplusplus
 }
 #endif
