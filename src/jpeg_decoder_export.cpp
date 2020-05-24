@@ -38,7 +38,7 @@ struct JPEG_HEADER {
     vector<vector<uint8_t>> dht;
     vector<uint8_t> sos_first_part;
     vector<uint8_t> sos_second_part;
-    struct block_offset_s *block_offsets;
+    vector<block_offset_s> block_offsets;
     int blocks_num;
     int block_offset_data_len;
 
@@ -72,7 +72,7 @@ uint8_t get_jpeg_header_status(void *jpeg_header_raw) {
 }
 void set_block_offsets(void *jpeg_header_raw, struct block_offset_s *block_offs, int length, int data_len) {
     JPEG_HEADER *jpeg_header = static_cast<JPEG_HEADER *>(jpeg_header_raw);
-    jpeg_header->block_offsets = block_offs;
+    jpeg_header->block_offsets = vector<struct block_offset_s>(block_offs, block_offs + length);
     jpeg_header->blocks_num = length;
     jpeg_header->block_offset_data_len = data_len;
 }
@@ -81,7 +81,7 @@ struct block_offset_s *get_block_offsets(void *jpeg_header_raw, int *length, int
     JPEG_HEADER *jpeg_header = static_cast<JPEG_HEADER *>(jpeg_header_raw);
     *length = jpeg_header->blocks_num;
     *data_len = jpeg_header->block_offset_data_len;
-    return jpeg_header->block_offsets;
+    return jpeg_header->block_offsets.data();
 }
 void set_jpeg_size(void *jpeg_header_raw, int width, int height) {
     JPEG_HEADER *jpeg_header = static_cast<JPEG_HEADER *>(jpeg_header_raw);
@@ -144,7 +144,7 @@ uint8_t *get_sos_2nd(void *jpeg_header_raw, int *length) {
 
 void *onlineROI(void *jpeg_header_raw, int offset_x, int offset_y, int roi_width, int roi_height) {
     JPEG_HEADER *jpeg_header = static_cast<JPEG_HEADER *>(jpeg_header_raw);
-    assert(jpeg_header->block_offsets != nullptr && jpeg_header->status == 1);
+    assert(jpeg_header->block_offsets.size() > 0 && jpeg_header->status == 1);
 
     int width_mcu = (jpeg_header->width + 7) / 8;
 
@@ -166,9 +166,6 @@ void *onlineROI(void *jpeg_header_raw, int offset_x, int offset_y, int roi_width
     int mcu_h_end = (pixel_h_end + 7) / 8;
     int mcu_w_end = (pixel_w_end + 7) / 8;
 
-    printf("%d %d -> %d %d\n", mcu_h_start, mcu_w_start, mcu_h_end, mcu_w_end);
-    printf("total blocks: %d\n", jpeg_header->blocks_num);
-
     struct JPEG_HEADER *ret = static_cast<struct JPEG_HEADER *>(create_jpeg_header());
     // copy constant parts
     ret->dqt_table = jpeg_header->dqt_table;
@@ -176,8 +173,10 @@ void *onlineROI(void *jpeg_header_raw, int offset_x, int offset_y, int roi_width
     ret->sos_first_part = jpeg_header->sos_first_part;
 
     int total_blocks = 3 * (mcu_h_end - mcu_h_start) * (mcu_w_end - mcu_w_start);
-    struct block_offset_s *block_pos_s =
-        (struct block_offset_s *) malloc(sizeof(struct block_offset_s) * (total_blocks));
+
+    ret->block_offsets.resize(total_blocks);
+    auto &block_pos_s = ret->block_offsets;
+    // printf("block_pos_s size: %d\n", block_pos_s.size());
 
     int block_count = 0;
     int curr_byte_pos = 0;
@@ -186,14 +185,13 @@ void *onlineROI(void *jpeg_header_raw, int offset_x, int offset_y, int roi_width
     for (int h = mcu_h_start; h < mcu_h_end; h++) {
         int start_mcu_id = h * width_mcu + mcu_w_start;
         int end_mcu_id = h * width_mcu + mcu_w_end;
-        // printf("mcu %d,%d\n", start_mcu_id, end_mcu_id);
         int start_block_id = start_mcu_id * 3;
         int end_block_id = end_mcu_id * 3;
-        // printf("start bid: %d, end bid: %d\n", start_block_id, end_block_id);
         int start_byte_off = jpeg_header->block_offsets[start_block_id].byte_offset;
         int end_byte_off = (end_block_id) < jpeg_header->blocks_num
                                ? jpeg_header->block_offsets[end_block_id].byte_offset
                                : jpeg_header->sos_second_part.size();
+
         sos2_data.resize(curr_byte_pos + (end_byte_off - start_byte_off));
         memcpy(sos2_data.data() + curr_byte_pos, jpeg_header->sos_second_part.data() + start_byte_off,
                end_byte_off - start_byte_off);
@@ -208,10 +206,9 @@ void *onlineROI(void *jpeg_header_raw, int offset_x, int offset_y, int roi_width
     }
 
     ret->blocks_num = block_count;
-    ret->block_offsets = block_pos_s;
     ret->sos_second_part = sos2_data;
 
-    printf("total_blocks: %d\n", block_count);
+    // printf("total_blocks: %d\n", block_count);
     assert(ret->blocks_num == jpeg_header->blocks_num);
     // change width/height value in sof0
     ret->sof0 = jpeg_header->sof0;
