@@ -8,6 +8,30 @@
 using std::string;
 using std::vector;
 
+static inline uint16_t big_endian_bytes2_uint(void *data) {
+    auto bytes = (uint8_t *) data;
+    uint16_t res;
+#ifdef _BIG_ENDIAN
+    return *((uint16_t *) bytes);
+#else
+    unsigned char *internal_buf = (unsigned char *) &res;
+    internal_buf[0] = bytes[1];
+    internal_buf[1] = bytes[0];
+    return res;
+#endif
+}
+
+static inline void bytes2_big_endian_uint(uint16_t len, uint8_t *target_ptr) {
+    unsigned char *b = (unsigned char *) target_ptr;
+    unsigned char *p = (unsigned char *) &len;
+#ifdef _BIG_ENDIAN
+    b[0] = p[0];
+    b[1] = p[1];
+#else
+    b[0] = p[1];
+    b[1] = p[0];
+#endif
+}
 struct block_offset_s *unpack_jpeg_comment_section(char *data, size_t length, size_t *out_num_element, int *data_len) {
     jpeg_dec::RecoredFileds record = jpeg_dec::unpack_jpeg_comment_section(data, length, out_num_element);
     struct block_offset_s *ret = (struct block_offset_s *) malloc(sizeof(struct block_offset_s) * (*out_num_element));
@@ -72,7 +96,14 @@ uint8_t get_jpeg_header_status(void *jpeg_header_raw) {
 }
 void set_block_offsets(void *jpeg_header_raw, struct block_offset_s *block_offs, int length, int data_len) {
     JPEG_HEADER *jpeg_header = static_cast<JPEG_HEADER *>(jpeg_header_raw);
-    jpeg_header->block_offsets = vector<struct block_offset_s>(block_offs, block_offs + length);
+    // jpeg_header->block_offsets = vector<struct block_offset_s>(block_offs, block_offs + length);
+    jpeg_header->block_offsets.resize(length);
+    for (int i = 0; i < length; i++) {
+        jpeg_header->block_offsets[i].byte_offset = block_offs[i].byte_offset;
+        jpeg_header->block_offsets[i].bit_offset = block_offs[i].bit_offset;
+
+        jpeg_header->block_offsets[i].dc_value = block_offs[i].dc_value;
+    }
     jpeg_header->blocks_num = length;
     jpeg_header->block_offset_data_len = data_len;
 }
@@ -166,6 +197,12 @@ void *onlineROI(void *jpeg_header_raw, int offset_x, int offset_y, int roi_width
     int mcu_h_end = (pixel_h_end + 7) / 8;
     int mcu_w_end = (pixel_w_end + 7) / 8;
 
+    printf("pixel_h_start: %d, pixel_h_end: %d\n", pixel_h_start, pixel_h_end);
+    printf("pixel_w_start: %d, pixel_w_end: %d\n", pixel_w_start, pixel_w_end);
+
+    printf("mcu_h_start: %d, mcu_h_end: %d\n", mcu_h_start, mcu_h_end);
+    printf("mcu_w_start: %d, mcu_w_end: %d\n", mcu_w_start, mcu_w_end);
+
     struct JPEG_HEADER *ret = static_cast<struct JPEG_HEADER *>(create_jpeg_header());
     // copy constant parts
     ret->dqt_table = jpeg_header->dqt_table;
@@ -187,6 +224,7 @@ void *onlineROI(void *jpeg_header_raw, int offset_x, int offset_y, int roi_width
         int end_mcu_id = h * width_mcu + mcu_w_end;
         int start_block_id = start_mcu_id * 3;
         int end_block_id = end_mcu_id * 3;
+        // printf("mcu: %d,%d\n", start_mcu_id, end_mcu_id);
         int start_byte_off = jpeg_header->block_offsets[start_block_id].byte_offset;
         int end_byte_off = (end_block_id) < jpeg_header->blocks_num
                                ? jpeg_header->block_offsets[end_block_id].byte_offset
@@ -209,25 +247,29 @@ void *onlineROI(void *jpeg_header_raw, int offset_x, int offset_y, int roi_width
     ret->sos_second_part = sos2_data;
 
     // printf("total_blocks: %d\n", block_count);
-    assert(ret->blocks_num == jpeg_header->blocks_num);
+    // assert(ret->blocks_num == jpeg_header->blocks_num);
     // change width/height value in sof0
     ret->sof0 = jpeg_header->sof0;
-
-    for (int i = 0; i < total_blocks; i++) {
-        int flag = 1;
-        for (int c = 0; c < 1; c++) {
-            uint8_t t1 = jpeg_header->sos_second_part[jpeg_header->block_offsets[i].byte_offset + c];
-            uint8_t t2 = ret->sos_second_part[ret->block_offsets[i].byte_offset + c];
-            if (t1 != t2) {
-                printf("block %d, error, should: %x, got: %x\n", i, t1, t2);
-                flag = 0;
-                break;
-            }
-        }
-        if (!flag) {
-            break;
-        }
-    }
+    bytes2_big_endian_uint(pixel_h_end - pixel_h_start, ret->sof0.data() + 3);
+    bytes2_big_endian_uint(pixel_w_end - pixel_w_start, ret->sof0.data() + 5);
+    int height = big_endian_bytes2_uint(ret->sof0.data() + 3);
+    int width = big_endian_bytes2_uint(ret->sof0.data() + 5);
+    printf("height: %d, width: %d\n", height, width);
+    // for (int i = 0; i < total_blocks; i++) {
+    //     int flag = 1;
+    //     for (int c = 0; c < 1; c++) {
+    //         uint8_t t1 = jpeg_header->sos_second_part[jpeg_header->block_offsets[i].byte_offset + c];
+    //         uint8_t t2 = ret->sos_second_part[ret->block_offsets[i].byte_offset + c];
+    //         if (t1 != t2) {
+    //             printf("block %d, error, should: %x, got: %x\n", i, t1, t2);
+    //             flag = 0;
+    //             break;
+    //         }
+    //     }
+    //     if (!flag) {
+    //         break;
+    //     }
+    // }
     // copy left parts
 
     return static_cast<void *>(ret);

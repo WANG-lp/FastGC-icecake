@@ -1,7 +1,7 @@
 #pragma once
 #include <cstdint>
 
-// data always stored in BIG_ENDIAN format
+// data always stored in SYSTEM ENDIAN format
 
 void uint16_to_bytes(uint16_t val, unsigned char *bytes);
 
