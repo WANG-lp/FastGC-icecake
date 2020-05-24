@@ -16,7 +16,6 @@ struct block_offset_s {
     int byte_offset;
     unsigned char bit_offset;
     int16_t dc_value;
-    int data_len;
 };
 
 struct JPEG_IMAGE {
@@ -34,7 +33,7 @@ struct JPEG_IMAGE {
 struct block_offset_s* unpack_jpeg_comment_section(char* data, size_t length, size_t* out_num_element, int* data_len);
 int writeBMP(const char* filename, const unsigned char* chanR, const unsigned char* chanG, const unsigned char* chanB,
              int width, int height);
-// JPEG_IMAGE* onlineROI(struct JPEG_IMAGE in_img, int ROI_w, int ROI_h, int ROI_x, int ROI_y);
+void* onlineROI(void* jpeg_header_raw, int offset_x, int offset_y, int roi_width, int roi_height);
 void dumpFile(const char* filename, const char* content, size_t length);
 
 void* create_jpeg_header();
@@ -46,6 +45,7 @@ void set_sos_1st(void* jpeg_header_raw, int length, uint8_t* sos_1st);
 void set_sos_2nd(void* jpeg_header_raw, int length, uint8_t* sos_2nd);
 void set_block_offsets(void* jpeg_header_raw, struct block_offset_s* block_offs, int length, int data_len);
 void set_jpeg_header_status(void* jpeg_header_raw, uint8_t status);
+void set_jpeg_size(void* jpeg_header_raw, int width, int height);
 
 int get_dqt_table_size(void* jpeg_header_raw);
 uint8_t* get_dqt_table(void* jpeg_header_raw, int id);
