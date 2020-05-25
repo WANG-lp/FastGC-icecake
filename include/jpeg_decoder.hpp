@@ -9,6 +9,8 @@
 #include <unordered_map>
 #include <vector>
 
+#include "jpeg_decoder_def.hpp"
+
 using std::string;
 using std::vector;
 
@@ -222,6 +224,7 @@ class BitStream {
 class JPEGDec {
    public:
     JPEGDec(const string &fname);
+    JPEGDec(const vector<uint8_t> &image);
     ~JPEGDec();
     void Parser();
     size_t Parser_app0(uint8_t *data_ptr);
@@ -232,6 +235,7 @@ class JPEGDec {
     size_t Parser_MCUs(uint8_t *data_ptr);
     size_t Scan_MCUs(uint8_t *data_ptr);
     void Decoding_on_BlockOffset();
+    void compact_boundary();
     void WriteBoundarytoFile(const string &fname);
 
     void Dequantize();
@@ -242,6 +246,8 @@ class JPEGDec {
 
     Image_struct get_imgstruct();
 
+    JPEG_HEADER get_header();
+
    private:
     size_t parser_mcu(uint16_t h_mcu_idx, uint16_t w_mcu_idx);
     size_t read_block(uint8_t id, size_t block_idx);
@@ -249,7 +255,7 @@ class JPEGDec {
     Image_struct images;
     vector<uint8_t> data;
     std::unique_ptr<BitStream> bitStream;
-    std::ofstream logf;
+    JPEG_HEADER header;
 };
 
 }  // namespace jpeg_dec

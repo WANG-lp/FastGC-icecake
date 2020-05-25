@@ -1,4 +1,4 @@
-#include "jpeg_decoder.hpp"
+#include "../include/jpeg_decoder.hpp"
 #include <spdlog/spdlog.h>
 #include <cereal/archives/binary.hpp>
 #include <cereal/types/memory.hpp>
@@ -223,13 +223,13 @@ JPEGDec::JPEGDec(const string &fname) {
     ifs.seekg(0, std::ios::beg);
     data.resize(fsize);
     ifs.read((char *) data.data(), fsize);
-
-    logf.open("/tmp/log.txt", std::ofstream::out | std::ofstream::trunc);
-    logf << "==========" << fname << "===========" << std::endl;
 }
+
+JPEGDec::JPEGDec(const vector<uint8_t> &image) { this->data = image; }
 JPEGDec::~JPEGDec() {}
 
 void JPEGDec::Parser() {
+    bool sos_first_time = true;
     for (size_t off = 0; off < data.size();) {
         uint8_t c = data[off];
         if (c != MARKER_PREFIX) {
@@ -246,67 +246,68 @@ void JPEGDec::Parser() {
                 break;
             };
             case SOI_SYM: {
-                spdlog::info("start of image, offset: {}", off);
+                // spdlog::info("start of image, offset: {}", off);
                 off += 1;
                 break;
             };
             case EOI_SYM: {
-                spdlog::info("end of image, offset: {}", off);
+                // spdlog::info("end of image, offset: {}", off);
                 off += 1;
                 return;
             };
             case APP0_SYM: {
-                spdlog::info("APP0, JFIF mark, offset: {}", off);
+                // spdlog::info("APP0, JFIF mark, offset: {}", off);
                 off += Parser_app0(data.data() + off + 1);
-                print_app0(images.app0);
+                // print_app0(images.app0);
                 break;
             };
             case DQT_SYM: {
-                spdlog::info("DQT, offset: {}", off);
+                // spdlog::info("DQT, offset: {}", off);
                 off += Parser_DQT(data.data() + off + 1);
                 break;
             };
             case DHT_SYM: {
-                spdlog::info("DHT, offset: {}", off);
+                // spdlog::info("DHT, offset: {}", off);
                 off += Parser_DHT(data.data() + off + 1);
                 break;
             };
             case SOF0_SYM: {
-                spdlog::info("SOF0(baseline), offset: {}", off);
+                // spdlog::info("SOF0(baseline), offset: {}", off);
                 images.sof0_offset = off - 1;  // 0xFFC0 (at 0xFF)
                 off += Parser_SOF0(data.data() + off + 1);
                 break;
             };
             case SOS_SYM: {
-                spdlog::info("SOS, begin data, offset: {}", off);
+                if (!sos_first_time) {
+                    header.status = 2;
+                    spdlog::error("multiple sos is not supported");
+                    return;
+                }
+                sos_first_time = false;
+                // spdlog::info("SOS, begin data, offset: {}", off);
                 off += Parser_SOS(data.data() + off + 1);
                 off++;
-                auto t_s = get_wall_time();
-                // off += Parser_MCUs(data.data() + off);
-                // dumpFile("/tmp/out2.bin", (const char *) data.data() + off, 100);
                 off += Scan_MCUs(data.data() + off);
-                spdlog::info("huffman scan time: {}us",
-                             std::chrono::duration_cast<std::chrono::microseconds>(get_wall_time() - t_s).count());
-
+                header.status = 1;
                 break;
             }
             case COM_SYM: {
                 spdlog::info("COM, begin data, offset: {}", off);
                 uint16_t len = big_endian_bytes2_uint(data.data() + off + 1);
-                // string com(data.data() + off + 1 + 2, data.data() + off + 1 + len);
-                // off += 1 + len;
-                spdlog::info("comment len: {}", len);
-                if (data[off + 3] == 0xDD && data[off + 4] == 0xCC) {
-                    spdlog::info("boundary comment found! skip scan!");
-                    size_t blocks_num;
-                    images.recordFileds =
-                        unpack_jpeg_comment_section((char *) data.data() + off + 5, len - 4, &blocks_num);
-                    images.recordFileds.scan_finish = true;
-                    spdlog::info("total blocks: {}", blocks_num);
-                    for (int i = 0; i < 10; i++) {
-                        printf("blocks: %d->%ld\n", i, images.recordFileds.blockpos[i].first);
-                    }
-                }
+                // // string com(data.data() + off + 1 + 2, data.data() + off + 1 + len);
+                // // off += 1 + len;
+                // spdlog::info("comment len: {}", len);
+                // if (data[off + 3] == 0xDD && data[off + 4] == 0xCC) {
+                //     spdlog::info("boundary comment found! skip scan!");
+                //     size_t blocks_num;
+                //     images.recordFileds =
+                //         unpack_jpeg_comment_section((char *) data.data() + off + 5, len - 4, &blocks_num);
+                //     images.recordFileds.scan_finish = true;
+                //     spdlog::info("total blocks: {}", blocks_num);
+                //     for (int i = 0; i < 10; i++) {
+                //         printf("blocks: %d->%ld\n", i, images.recordFileds.blockpos[i].first);
+                //     }
+                // }
                 off += 1 + len;
                 break;
             }
@@ -346,7 +347,9 @@ size_t JPEGDec::Parser_DQT(uint8_t *data_ptr) {
     uint8_t *data_raw = data_ptr;
     auto len = big_endian_bytes2_uint(data_ptr);
     auto ret = len;
-    spdlog::info("DQT length: {}", len);
+    // spdlog::info("DQT length: {}", len);
+    set_dqt_table(&header, len, data_ptr);
+
     len -= 2;
     data_raw += 2;
     while (len > 0) {
@@ -373,13 +376,13 @@ size_t JPEGDec::Parser_DQT(uint8_t *data_ptr) {
             spdlog::error("Unknown DQT table");
             exit(1);
         }
-        printf("DQT table %d, precision %d\n", id, precision);
-        for (int i = 0; i < 8; i++) {
-            for (int j = 0; j < 8; j++) {
-                printf("%.2f ", table[i * 8 + j]);
-            }
-            printf("\n");
-        }
+        // printf("DQT table %d, precision %d\n", id, precision);
+        // for (int i = 0; i < 8; i++) {
+        //     for (int j = 0; j < 8; j++) {
+        //         printf("%.2f ", table[i * 8 + j]);
+        //     }
+        //     printf("\n");
+        // }
     }
     return ret;
 }
@@ -388,8 +391,11 @@ size_t JPEGDec::Parser_SOF0(uint8_t *data_ptr) {
     uint8_t *data_raw = data_ptr;
     auto len = big_endian_bytes2_uint(data_raw);
     auto ret = len;
+
+    set_sof0(&header, len, data_ptr);
+
     data_raw += 2;
-    spdlog::info("SOF0 length: {}", len);
+    // spdlog::info("SOF0 length: {}", len);
     images.sof.precision = data_raw[0];
     data_raw += 1;
     images.sof.height = big_endian_bytes2_uint(data_raw);
@@ -397,10 +403,12 @@ size_t JPEGDec::Parser_SOF0(uint8_t *data_ptr) {
     images.sof.width = big_endian_bytes2_uint(data_raw);
     data_raw += 2;
 
+    set_jpeg_size(&header, images.sof.width, images.sof.height);
+
     uint8_t num_component = data_raw[0];
     data_raw += 1;
 
-    printf("precision: %d, height: %d, width: %d\n", images.sof.precision, images.sof.height, images.sof.width);
+    // printf("precision: %d, height: %d, width: %d\n", images.sof.precision, images.sof.height, images.sof.width);
 
     images.sof.max_horizontal_sampling = 0;
     images.sof.max_vertical_sampling = 0;
@@ -421,13 +429,13 @@ size_t JPEGDec::Parser_SOF0(uint8_t *data_ptr) {
             images.sof.max_vertical_sampling = cinfo.vertical_sampling;
         }
         images.sof.component_infos.push_back(cinfo);
-        printf("horizontal_sampling: %d, vertical_sampling: %d, quant_table_id: %d\n", cinfo.horizontal_sampling,
-               cinfo.vertical_sampling, cinfo.quant_table_id);
+        // printf("horizontal_sampling: %d, vertical_sampling: %d, quant_table_id: %d\n", cinfo.horizontal_sampling,
+        //        cinfo.vertical_sampling, cinfo.quant_table_id);
         // printf("");
     }
 
-    spdlog::info("max horizontal sampling: {}, max vertical sampling: {}", images.sof.max_horizontal_sampling,
-                 images.sof.max_vertical_sampling);
+    // spdlog::info("max horizontal sampling: {}, max vertical sampling: {}", images.sof.max_horizontal_sampling,
+    //              images.sof.max_vertical_sampling);
     return ret;
 }
 
@@ -435,8 +443,11 @@ size_t JPEGDec::Parser_DHT(uint8_t *data_ptr) {
     uint8_t *data_raw = data_ptr;
     auto len = big_endian_bytes2_uint(data_raw);
     auto ret = len;
+
+    set_dht(&header, len, data_ptr);
+
     data_raw += 2;
-    spdlog::info("DHT length: {}", len);
+    // spdlog::info("DHT length: {}", len);
     len -= 2;
     while (len > 0) {
         uint8_t c = data_raw[0];
@@ -446,11 +457,11 @@ size_t JPEGDec::Parser_DHT(uint8_t *data_ptr) {
         vector<uint8_t> height_info(16);
         memcpy(height_info.data(), data_raw, 16);
         data_raw += 16;
-        printf("table type: %s, id: %d\n", ac_dc == 0 ? "DC" : "AC", id);
-        for (int i = 0; i < 16; i++) {
-            printf("%d ", height_info[i]);
-        }
-        printf("\n");
+        // printf("table type: %s, id: %d\n", ac_dc == 0 ? "DC" : "AC", id);
+        // for (int i = 0; i < 16; i++) {
+        //     printf("%d ", height_info[i]);
+        // }
+        // printf("\n");
         len -= 17;
         std::unordered_map<uint8_t, std::unordered_map<uint16_t, uint8_t>> map;
         uint16_t code = 0;
@@ -459,9 +470,9 @@ size_t JPEGDec::Parser_DHT(uint8_t *data_ptr) {
                 uint8_t symb = data_raw[0];
                 data_raw += 1;
                 map[h + 1][code] = symb;
-                printf("len: %d\t", h + 1);
-                printBits(2, &code);
-                printf(" %#04X\n", symb);
+                // printf("len: %d\t", h + 1);
+                // printBits(2, &code);
+                // printf(" %#04X\n", symb);
                 code += 1;
                 len -= 1;
             }
@@ -480,8 +491,11 @@ size_t JPEGDec::Parser_SOS(uint8_t *data_ptr) {
     uint8_t *data_raw = data_ptr;
     auto len = big_endian_bytes2_uint(data_raw);
     auto ret = len;
+
+    set_sos_1st(&header, len, data_ptr);
+
     data_raw += 2;
-    spdlog::info("SOS length: {}", len);
+    // spdlog::info("SOS length: {}", len);
 
     auto &table_mapping_dc = images.table_mapping_dc;
     auto &table_mapping_ac = images.table_mapping_ac;
@@ -502,7 +516,7 @@ size_t JPEGDec::Parser_SOS(uint8_t *data_ptr) {
         uint8_t ac_id = (id & 0x0F);
         table_mapping_dc[comp - 1] = dc_id;
         table_mapping_ac[comp - 1] = ac_id;
-        printf("%d components, dc ht id: %d, ac ht id: %d\n", comp, dc_id, ac_id);
+        // printf("%d components, dc ht id: %d, ac ht id: %d\n", comp, dc_id, ac_id);
     }
 
     // following is fixed in JPEG-baseline
@@ -546,9 +560,7 @@ void printBlock(vector<float> &block) {
     }
 }
 size_t JPEGDec::read_block(uint8_t id, size_t block_idx) {
-    logf << "channel: " << std::to_string(id) << " block: " << std::to_string(block_idx) << "" << std::endl;
-    logf << std::to_string(bitStream->get_global_offset()) << " " << std::to_string(bitStream->get_bit_offset())
-         << std::endl;
+
     auto &img = images;
     auto &dc_table = img.huffmanTable.dc_tables[img.table_mapping_dc[id]];
     auto &ac_table = img.huffmanTable.ac_tables[img.table_mapping_ac[id]];
@@ -783,14 +795,14 @@ size_t JPEGDec::Scan_MCUs(uint8_t *data_ptr) {
 
     uint16_t ww = (image_width - 1) / (8 * sof_info.max_horizontal_sampling) + 1;
     uint16_t hh = (image_height - 1) / (8 * sof_info.max_vertical_sampling) + 1;
-    spdlog::info("width has {} MCUs, height has {} MCUs", ww, hh);
+    // spdlog::info("width has {} MCUs, height has {} MCUs", ww, hh);
     images.mcus.w_mcu_num = ww;
     images.mcus.h_mcu_num = hh;
     if (images.recordFileds.scan_finish) {
         spdlog::info("already read boundary from file");
         return 1;
     }
-    spdlog::info("mcu start pos: {}", data_raw - data.data());
+    // spdlog::info("mcu start pos: {}", data_raw - data.data());
 
     BitStream bitStream(data_raw, data.data());
 
@@ -913,7 +925,24 @@ size_t JPEGDec::Scan_MCUs(uint8_t *data_ptr) {
     }
     images.recordFileds.scan_finish = true;
     images.recordFileds.data_len = bitStream.get_ptr() - data_ptr;
+    set_sos_2nd(&header, images.recordFileds.data_len, data_ptr);
+    for (size_t i = 0; i < images.recordFileds.blockpos.size(); i++) {
+        header.block_offsets.push_back({(int) images.recordFileds.blockpos[i].first,
+                                        images.recordFileds.blockpos[i].second, images.recordFileds.dc_value[i]});
+    }
+    header.blocks_num = images.recordFileds.blockpos.size();
+    header.status = 1;
     return bitStream.get_ptr() - data_ptr;
+}
+
+JPEG_HEADER JPEGDec::get_header() {
+    if (header.block_offsets[0].byte_offset != 0) {
+        size_t base = header.block_offsets[0].byte_offset;
+        for (size_t i = 0; i < header.block_offsets.size(); i++) {
+            header.block_offsets[i].byte_offset -= base;
+        }
+    }
+    return this->header;
 }
 
 void JPEGDec::Dequantize() {
@@ -1061,8 +1090,7 @@ void JPEGDec::Dump(const string &fname) {
     }
     writeBMP(fname.c_str(), chanR.data(), chanG.data(), chanB.data(), images.sof.width, images.sof.height);
 }
-
-void JPEGDec::WriteBoundarytoFile(const string &fname) {
+void JPEGDec::compact_boundary() {
     // compact block pos
     auto blockpos = images.recordFileds.blockpos;
 
@@ -1091,6 +1119,9 @@ void JPEGDec::WriteBoundarytoFile(const string &fname) {
 
     spdlog::info("total writen bit: {}", obitStream.total_write_bit());
     images.recordFileds.blockpos_compact = obitStream.get_data();
+};
+void JPEGDec::WriteBoundarytoFile(const string &fname) {
+    compact_boundary();
 
     size_t off = images.sof0_offset;
     size_t len = 2;  // length size (16bit,64KiB range)

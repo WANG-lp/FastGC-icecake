@@ -1,9 +1,11 @@
 #include "../include/jpeg_decoder_export.h"
+#include "../include/jpeg_decoder_def.hpp"
+
 #include <cstring>
 #include <fstream>
 #include <string>
 #include <vector>
-#include "jpeg_decoder.hpp"
+#include "../include/jpeg_decoder.hpp"
 
 using std::string;
 using std::vector;
@@ -32,7 +34,7 @@ static inline void bytes2_big_endian_uint(uint16_t len, uint8_t *target_ptr) {
     b[1] = p[0];
 #endif
 }
-struct block_offset_s *unpack_jpeg_comment_section(char *data, size_t length, size_t *out_num_element, int *data_len) {
+struct block_offset_s *unpack_jpeg_comment_section(char *data, size_t length, size_t *out_num_element) {
     jpeg_dec::RecoredFileds record = jpeg_dec::unpack_jpeg_comment_section(data, length, out_num_element);
     struct block_offset_s *ret = (struct block_offset_s *) malloc(sizeof(struct block_offset_s) * (*out_num_element));
     for (size_t i = 0; i < *out_num_element; i++) {
@@ -40,7 +42,6 @@ struct block_offset_s *unpack_jpeg_comment_section(char *data, size_t length, si
         ret[i].bit_offset = record.blockpos[i].second;
         ret[i].dc_value = record.dc_value[i];
     }
-    *data_len = record.data_len;
     return ret;
 }
 
@@ -55,22 +56,6 @@ void dumpFile(const char *filename, const char *content, size_t length) {
     of.write(content, length);
     of.close();
 }
-
-struct JPEG_HEADER {
-    vector<vector<uint8_t>> dqt_table;
-    vector<uint8_t> sof0;
-    vector<vector<uint8_t>> dht;
-    vector<uint8_t> sos_first_part;
-    vector<uint8_t> sos_second_part;
-    vector<block_offset_s> block_offsets;
-    int blocks_num;
-    int block_offset_data_len;
-
-    int width;
-    int height;
-
-    uint8_t status;  // 0->new created, 1->with data;
-};
 
 void *create_jpeg_header() {
     JPEG_HEADER *ret = new struct JPEG_HEADER;
@@ -94,7 +79,7 @@ uint8_t get_jpeg_header_status(void *jpeg_header_raw) {
     JPEG_HEADER *jpeg_header = static_cast<JPEG_HEADER *>(jpeg_header_raw);
     return jpeg_header->status;
 }
-void set_block_offsets(void *jpeg_header_raw, struct block_offset_s *block_offs, int length, int data_len) {
+void set_block_offsets(void *jpeg_header_raw, const struct block_offset_s *block_offs, int length) {
     JPEG_HEADER *jpeg_header = static_cast<JPEG_HEADER *>(jpeg_header_raw);
     // jpeg_header->block_offsets = vector<struct block_offset_s>(block_offs, block_offs + length);
     jpeg_header->block_offsets.resize(length);
@@ -105,13 +90,11 @@ void set_block_offsets(void *jpeg_header_raw, struct block_offset_s *block_offs,
         jpeg_header->block_offsets[i].dc_value = block_offs[i].dc_value;
     }
     jpeg_header->blocks_num = length;
-    jpeg_header->block_offset_data_len = data_len;
 }
 
-struct block_offset_s *get_block_offsets(void *jpeg_header_raw, int *length, int *data_len) {
+struct block_offset_s *get_block_offsets(void *jpeg_header_raw, int *length) {
     JPEG_HEADER *jpeg_header = static_cast<JPEG_HEADER *>(jpeg_header_raw);
     *length = jpeg_header->blocks_num;
-    *data_len = jpeg_header->block_offset_data_len;
     return jpeg_header->block_offsets.data();
 }
 void set_jpeg_size(void *jpeg_header_raw, int width, int height) {
@@ -119,7 +102,7 @@ void set_jpeg_size(void *jpeg_header_raw, int width, int height) {
     jpeg_header->width = width;
     jpeg_header->height = height;
 }
-void set_dqt_table(void *jpeg_header_raw, int length, uint8_t *dqt_content) {
+void set_dqt_table(void *jpeg_header_raw, int length, const uint8_t *dqt_content) {
     JPEG_HEADER *jpeg_header = static_cast<JPEG_HEADER *>(jpeg_header_raw);
     jpeg_header->dqt_table.emplace_back(dqt_content, dqt_content + length);
 }
@@ -131,7 +114,7 @@ int get_dqt_table_size(void *jpeg_header_raw) {
     JPEG_HEADER *jpeg_header = static_cast<JPEG_HEADER *>(jpeg_header_raw);
     return jpeg_header->dqt_table.size();
 }
-void set_sof0(void *jpeg_header_raw, int length, uint8_t *sof0) {
+void set_sof0(void *jpeg_header_raw, int length, const uint8_t *sof0) {
     JPEG_HEADER *jpeg_header = static_cast<JPEG_HEADER *>(jpeg_header_raw);
     jpeg_header->sof0.resize(length);
     memcpy(jpeg_header->sof0.data(), sof0, length);
@@ -140,7 +123,7 @@ uint8_t *get_sof0_table(void *jpeg_header_raw) {
     JPEG_HEADER *jpeg_header = static_cast<JPEG_HEADER *>(jpeg_header_raw);
     return jpeg_header->sof0.data();
 }
-void set_dht(void *jpeg_header_raw, int length, uint8_t *dht) {
+void set_dht(void *jpeg_header_raw, int length, const uint8_t *dht) {
     JPEG_HEADER *jpeg_header = static_cast<JPEG_HEADER *>(jpeg_header_raw);
     jpeg_header->dht.emplace_back(dht, dht + length);
 }
@@ -152,12 +135,12 @@ uint8_t *get_dht_table(void *jpeg_header_raw, int id) {
     JPEG_HEADER *jpeg_header = static_cast<JPEG_HEADER *>(jpeg_header_raw);
     return jpeg_header->dht[id].data();
 }
-void set_sos_1st(void *jpeg_header_raw, int length, uint8_t *sos_1st) {
+void set_sos_1st(void *jpeg_header_raw, int length, const uint8_t *sos_1st) {
     JPEG_HEADER *jpeg_header = static_cast<JPEG_HEADER *>(jpeg_header_raw);
     jpeg_header->sos_first_part.resize(length);
     memcpy(jpeg_header->sos_first_part.data(), sos_1st, length);
 }
-void set_sos_2nd(void *jpeg_header_raw, int length, uint8_t *sos_2nd) {
+void set_sos_2nd(void *jpeg_header_raw, int length, const uint8_t *sos_2nd) {
     JPEG_HEADER *jpeg_header = static_cast<JPEG_HEADER *>(jpeg_header_raw);
     jpeg_header->sos_second_part.resize(length);
     memcpy(jpeg_header->sos_second_part.data(), sos_2nd, length);
