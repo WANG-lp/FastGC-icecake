@@ -271,6 +271,7 @@ void *onlineROI(void *jpeg_header_raw, int offset_x, int offset_y, int roi_width
     //     }
     // }
     // copy left parts
+    ret->status = 1;  // set status to ready
 
     return static_cast<void *>(ret);
 }
