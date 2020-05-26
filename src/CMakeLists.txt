@@ -13,6 +13,12 @@ find_package (Python COMPONENTS Interpreter Development)
 #find_package( OpenCV REQUIRED NO_DEFAULT_PATH PATHS "/home/lwangay/root/opencv-3.4.10/usr/local/share/OpenCV")
 find_package( OpenCV REQUIRED)
 
+find_package(OpenSSL REQUIRED)
+include_directories(${OPENSSL_INCLUDE_DIR})
+
+find_package(THRIFT REQUIRED)
+include_directories(${THRIFT_INCLUDE_DIR})
+
 include_directories( ${OpenCV_INCLUDE_DIRS} )
 include_directories(${CUDA_INCLUDE_DIRS})
 include_directories(${Python_INCLUDE_DIRS})
@@ -41,7 +47,7 @@ if (BUILD_DALI_PLUGIN)
 endif()
 
 add_library(jpegdec jpeg_decoder.cpp jpeg_decoder_export.cpp JCache.cpp ../include/JCache.hpp)
-target_link_libraries(jpegdec PRIVATE Threads::Threads ${CUDA_LIBRARIES} OpenMP::OpenMP_CXX)
+target_link_libraries(jpegdec PRIVATE Threads::Threads ${THRIFT_LIBRARIES} ${CUDA_LIBRARIES} OpenMP::OpenMP_CXX)
 
 add_executable(jcache_server main.cpp)
 target_link_libraries(jcache_server PRIVATE Threads::Threads OpenMP::OpenMP_CXX jpegdec)
