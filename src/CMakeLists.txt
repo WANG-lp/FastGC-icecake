@@ -30,6 +30,9 @@ set(CPP_SRC
         utils/chromiumbase64.cpp
         icecake.cpp
         icecake-python.cpp
+        gen-cpp/JPEGCache_constants.cpp
+        gen-cpp/JPEGCache_types.cpp
+        gen-cpp/JPEGCache.cpp
         )
 set(CUDA_SRC
         cuda/cuda.cuh
@@ -46,7 +49,15 @@ if (BUILD_DALI_PLUGIN)
     add_subdirectory(dali-ops)
 endif()
 
-add_library(jpegdec jpeg_decoder.cpp jpeg_decoder_export.cpp JCache.cpp ../include/JCache.hpp)
+set(DECODER_CPP_SRC
+        jpeg_decoder.cpp jpeg_decoder_export.cpp JCache.cpp
+        ../include/JCache.hpp
+        gen-cpp/JPEGCache_constants.cpp
+        gen-cpp/JPEGCache_types.cpp
+        gen-cpp/JPEGCache.cpp
+        )
+
+add_library(jpegdec ${DECODER_CPP_SRC})
 target_link_libraries(jpegdec PRIVATE Threads::Threads ${THRIFT_LIBRARIES} ${CUDA_LIBRARIES} OpenMP::OpenMP_CXX)
 
 add_executable(jcache_server main.cpp)

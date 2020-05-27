@@ -474,8 +474,16 @@ uint32_t JPEGCache_put_args::read(::apache::thrift::protocol::TProtocol* iprot) 
     {
       case 1:
         if (ftype == ::apache::thrift::protocol::T_STRING) {
-          xfer += iprot->readString(this->filenames);
-          this->__isset.filenames = true;
+          xfer += iprot->readString(this->filename);
+          this->__isset.filename = true;
+        } else {
+          xfer += iprot->skip(ftype);
+        }
+        break;
+      case 2:
+        if (ftype == ::apache::thrift::protocol::T_STRING) {
+          xfer += iprot->readBinary(this->content);
+          this->__isset.content = true;
         } else {
           xfer += iprot->skip(ftype);
         }
@@ -497,8 +505,12 @@ uint32_t JPEGCache_put_args::write(::apache::thrift::protocol::TProtocol* oprot)
   ::apache::thrift::protocol::TOutputRecursionTracker tracker(*oprot);
   xfer += oprot->writeStructBegin("JPEGCache_put_args");
 
-  xfer += oprot->writeFieldBegin("filenames", ::apache::thrift::protocol::T_STRING, 1);
-  xfer += oprot->writeString(this->filenames);
+  xfer += oprot->writeFieldBegin("filename", ::apache::thrift::protocol::T_STRING, 1);
+  xfer += oprot->writeString(this->filename);
+  xfer += oprot->writeFieldEnd();
+
+  xfer += oprot->writeFieldBegin("content", ::apache::thrift::protocol::T_STRING, 2);
+  xfer += oprot->writeBinary(this->content);
   xfer += oprot->writeFieldEnd();
 
   xfer += oprot->writeFieldStop();
@@ -516,8 +528,12 @@ uint32_t JPEGCache_put_pargs::write(::apache::thrift::protocol::TProtocol* oprot
   ::apache::thrift::protocol::TOutputRecursionTracker tracker(*oprot);
   xfer += oprot->writeStructBegin("JPEGCache_put_pargs");
 
-  xfer += oprot->writeFieldBegin("filenames", ::apache::thrift::protocol::T_STRING, 1);
-  xfer += oprot->writeString((*(this->filenames)));
+  xfer += oprot->writeFieldBegin("filename", ::apache::thrift::protocol::T_STRING, 1);
+  xfer += oprot->writeString((*(this->filename)));
+  xfer += oprot->writeFieldEnd();
+
+  xfer += oprot->writeFieldBegin("content", ::apache::thrift::protocol::T_STRING, 2);
+  xfer += oprot->writeBinary((*(this->content)));
   xfer += oprot->writeFieldEnd();
 
   xfer += oprot->writeFieldStop();
@@ -753,19 +769,20 @@ void JPEGCacheClient::recv_getWithROI(std::string& _return)
   throw ::apache::thrift::TApplicationException(::apache::thrift::TApplicationException::MISSING_RESULT, "getWithROI failed: unknown result");
 }
 
-int32_t JPEGCacheClient::put(const std::string& filenames)
+int32_t JPEGCacheClient::put(const std::string& filename, const std::string& content)
 {
-  send_put(filenames);
+  send_put(filename, content);
   return recv_put();
 }
 
-void JPEGCacheClient::send_put(const std::string& filenames)
+void JPEGCacheClient::send_put(const std::string& filename, const std::string& content)
 {
   int32_t cseqid = 0;
   oprot_->writeMessageBegin("put", ::apache::thrift::protocol::T_CALL, cseqid);
 
   JPEGCache_put_pargs args;
-  args.filenames = &filenames;
+  args.filename = &filename;
+  args.content = &content;
   args.write(oprot_);
 
   oprot_->writeMessageEnd();
@@ -961,7 +978,7 @@ void JPEGCacheProcessor::process_put(int32_t seqid, ::apache::thrift::protocol::
 
   JPEGCache_put_result result;
   try {
-    result.success = iface_->put(args.filenames);
+    result.success = iface_->put(args.filename, args.content);
     result.__isset.success = true;
   } catch (const std::exception& e) {
     if (this->eventHandler_.get() != NULL) {
@@ -1171,20 +1188,21 @@ void JPEGCacheConcurrentClient::recv_getWithROI(std::string& _return, const int3
   } // end while(true)
 }
 
-int32_t JPEGCacheConcurrentClient::put(const std::string& filenames)
+int32_t JPEGCacheConcurrentClient::put(const std::string& filename, const std::string& content)
 {
-  int32_t seqid = send_put(filenames);
+  int32_t seqid = send_put(filename, content);
   return recv_put(seqid);
 }
 
-int32_t JPEGCacheConcurrentClient::send_put(const std::string& filenames)
+int32_t JPEGCacheConcurrentClient::send_put(const std::string& filename, const std::string& content)
 {
   int32_t cseqid = this->sync_->generateSeqId();
   ::apache::thrift::async::TConcurrentSendSentry sentry(this->sync_.get());
   oprot_->writeMessageBegin("put", ::apache::thrift::protocol::T_CALL, cseqid);
 
   JPEGCache_put_pargs args;
-  args.filenames = &filenames;
+  args.filename = &filename;
+  args.content = &content;
   args.write(oprot_);
 
   oprot_->writeMessageEnd();

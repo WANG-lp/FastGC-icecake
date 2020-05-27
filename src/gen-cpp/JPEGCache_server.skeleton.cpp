@@ -30,7 +30,7 @@ class JPEGCacheHandler : virtual public JPEGCacheIf {
     printf("getWithROI\n");
   }
 
-  int32_t put(const std::string& filenames) {
+  int32_t put(const std::string& filename, const std::string& content) {
     // Your implementation goes here
     printf("put\n");
   }

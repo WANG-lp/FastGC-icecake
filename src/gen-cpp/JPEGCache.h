@@ -24,7 +24,7 @@ class JPEGCacheIf {
   virtual ~JPEGCacheIf() {}
   virtual void get(std::string& _return, const std::string& filename) = 0;
   virtual void getWithROI(std::string& _return, const std::string& filename, const int32_t offset_x, const int32_t offset_y, const int32_t roi_w, const int32_t roi_h) = 0;
-  virtual int32_t put(const std::string& filenames) = 0;
+  virtual int32_t put(const std::string& filename, const std::string& content) = 0;
 };
 
 class JPEGCacheIfFactory {
@@ -60,7 +60,7 @@ class JPEGCacheNull : virtual public JPEGCacheIf {
   void getWithROI(std::string& /* _return */, const std::string& /* filename */, const int32_t /* offset_x */, const int32_t /* offset_y */, const int32_t /* roi_w */, const int32_t /* roi_h */) {
     return;
   }
-  int32_t put(const std::string& /* filenames */) {
+  int32_t put(const std::string& /* filename */, const std::string& /* content */) {
     int32_t _return = 0;
     return _return;
   }
@@ -303,8 +303,9 @@ class JPEGCache_getWithROI_presult {
 };
 
 typedef struct _JPEGCache_put_args__isset {
-  _JPEGCache_put_args__isset() : filenames(false) {}
-  bool filenames :1;
+  _JPEGCache_put_args__isset() : filename(false), content(false) {}
+  bool filename :1;
+  bool content :1;
 } _JPEGCache_put_args__isset;
 
 class JPEGCache_put_args {
@@ -312,19 +313,24 @@ class JPEGCache_put_args {
 
   JPEGCache_put_args(const JPEGCache_put_args&);
   JPEGCache_put_args& operator=(const JPEGCache_put_args&);
-  JPEGCache_put_args() : filenames() {
+  JPEGCache_put_args() : filename(), content() {
   }
 
   virtual ~JPEGCache_put_args() noexcept;
-  std::string filenames;
+  std::string filename;
+  std::string content;
 
   _JPEGCache_put_args__isset __isset;
 
-  void __set_filenames(const std::string& val);
+  void __set_filename(const std::string& val);
+
+  void __set_content(const std::string& val);
 
   bool operator == (const JPEGCache_put_args & rhs) const
   {
-    if (!(filenames == rhs.filenames))
+    if (!(filename == rhs.filename))
+      return false;
+    if (!(content == rhs.content))
       return false;
     return true;
   }
@@ -345,7 +351,8 @@ class JPEGCache_put_pargs {
 
 
   virtual ~JPEGCache_put_pargs() noexcept;
-  const std::string* filenames;
+  const std::string* filename;
+  const std::string* content;
 
   uint32_t write(::apache::thrift::protocol::TProtocol* oprot) const;
 
@@ -437,8 +444,8 @@ class JPEGCacheClient : virtual public JPEGCacheIf {
   void getWithROI(std::string& _return, const std::string& filename, const int32_t offset_x, const int32_t offset_y, const int32_t roi_w, const int32_t roi_h);
   void send_getWithROI(const std::string& filename, const int32_t offset_x, const int32_t offset_y, const int32_t roi_w, const int32_t roi_h);
   void recv_getWithROI(std::string& _return);
-  int32_t put(const std::string& filenames);
-  void send_put(const std::string& filenames);
+  int32_t put(const std::string& filename, const std::string& content);
+  void send_put(const std::string& filename, const std::string& content);
   int32_t recv_put();
  protected:
   std::shared_ptr< ::apache::thrift::protocol::TProtocol> piprot_;
@@ -512,13 +519,13 @@ class JPEGCacheMultiface : virtual public JPEGCacheIf {
     return;
   }
 
-  int32_t put(const std::string& filenames) {
+  int32_t put(const std::string& filename, const std::string& content) {
     size_t sz = ifaces_.size();
     size_t i = 0;
     for (; i < (sz - 1); ++i) {
-      ifaces_[i]->put(filenames);
+      ifaces_[i]->put(filename, content);
     }
-    return ifaces_[i]->put(filenames);
+    return ifaces_[i]->put(filename, content);
   }
 
 };
@@ -559,8 +566,8 @@ class JPEGCacheConcurrentClient : virtual public JPEGCacheIf {
   void getWithROI(std::string& _return, const std::string& filename, const int32_t offset_x, const int32_t offset_y, const int32_t roi_w, const int32_t roi_h);
   int32_t send_getWithROI(const std::string& filename, const int32_t offset_x, const int32_t offset_y, const int32_t roi_w, const int32_t roi_h);
   void recv_getWithROI(std::string& _return, const int32_t seqid);
-  int32_t put(const std::string& filenames);
-  int32_t send_put(const std::string& filenames);
+  int32_t put(const std::string& filename, const std::string& content);
+  int32_t send_put(const std::string& filename, const std::string& content);
   int32_t recv_put(const int32_t seqid);
  protected:
   std::shared_ptr< ::apache::thrift::protocol::TProtocol> piprot_;

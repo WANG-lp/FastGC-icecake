@@ -1,24 +1,26 @@
 #include "../include/JCache.hpp"
 #include "../include/jpeg_decoder.hpp"
 #include "../include/jpeg_decoder_export.h"
-#include "spdlog/spdlog.h"
-namespace jcache {
-const uint8_t DC0_SYM = 0x00;
-const uint8_t DC1_SYM = 0x01;
-const uint8_t AC0_SYM = 0x10;
-const uint8_t AC1_SYM = 0x11;
-const uint8_t MARKER_PREFIX = 0xFF;
-const uint8_t SOI_SYM = 0xD8;   // start of image
-const uint8_t EOI_SYM = 0xD9;   // end of image
-const uint8_t APP0_SYM = 0xE0;  // JFIF info
-const uint8_t DQT_SYM = 0xDB;   // DQT (define quantization table)
-const uint8_t DHT_SYM = 0xC4;   // DHT (define huffman table)
-const uint8_t SOF0_SYM = 0xC0;  // start of frame (baseline)
-const uint8_t SOS_SYM = 0xDA;   // SOS, start of scan
-const uint8_t COM_SYM = 0xFE;   // comment
 
-const uint8_t POS_RECORD_SEG1 = 9;  // 9 bit per block offset(record a relative length)
-const uint8_t POS_RECORD_SEG2 = 3;  // 3 bit to record which bit in a byte
+#include <spdlog/spdlog.h>
+#include <thrift/protocol/TBinaryProtocol.h>
+#include <thrift/transport/TBufferTransports.h>
+#include <cereal/archives/binary.hpp>
+#include <cereal/types/memory.hpp>
+#include <cereal/types/vector.hpp>
+
+template <class Archive>
+void serialize(Archive &archive, block_offset_s &m) {
+    archive(m.byte_offset, m.bit_offset, m.dc_value);
+}
+
+template <class Archive>
+void serialize(Archive &archive, JPEG_HEADER &m) {
+    archive(m.dqt_table, m.sof0, m.dht, m.sos_first_part, m.sos_second_part, m.block_offsets, m.blocks_num, m.width,
+            m.height, m.status);
+}
+
+namespace jcache {
 
 inline uint16_t big_endian_bytes2_uint(const void *data) {
     auto bytes = (uint8_t *) data;
@@ -45,32 +47,157 @@ inline void bytes2_big_endian_uint(uint16_t len, uint8_t *target_ptr) {
 #endif
 }
 
-JCache::JCache(){};
+JCache::JCache(int port) {
+    jpegcachehandler = std::make_shared<JPEGCacheHandler>();
+    jpegcachehandler->setJCache(this);
+    std::shared_ptr<at::server::TProcessor> processor(new JPEGCacheProcessor(jpegcachehandler));
+    std::shared_ptr<atp::TProtocolFactory> protocolFactory(new atp::TBinaryProtocolFactory());
+    auto threadManager = at::concurrency::ThreadManager::newSimpleThreadManager(16);
+    auto threadFactory = std::make_shared<at::concurrency::ThreadFactory>();
+    threadManager->threadFactory(threadFactory);
+    threadManager->start();
+    std::shared_ptr<att::TTransportFactory> transportFactory(new att::TFramedTransportFactory());
+
+    server_transport = std::make_shared<att::TServerSocket>("0.0.0.0", port);
+    server_handle = std::make_shared<at::server::TThreadPoolServer>(processor, server_transport, transportFactory,
+                                                                    protocolFactory, threadManager);
+};
+JCache::~JCache() {
+    server_handle->stop();
+    if (isStarted) {
+        server_tid.join();
+    }
+}
+
+void JCache::startServer() { server_tid = std::thread(std::bind(&JCache::server_func, this)); }
+void JCache::serve() { server_func(); }
+void JCache::server_func() {
+    isStarted = true;
+    server_handle->serve();
+}
+
+bool JCache::putJPEG(const uint8_t *image_raw, size_t len, const string &filename) {
+    jpeg_dec::JPEGDec dec(image_raw, len);
+    dec.Parser();
+    map_[filename] = dec.get_header();
+    return true;
+}
 bool JCache::putJPEG(const vector<uint8_t> &image, const string &filename) {
     jpeg_dec::JPEGDec dec(image);
     dec.Parser();
     map_[filename] = dec.get_header();
+    spdlog::info("put image {}", filename);
     return true;
 }
 bool JCache::putJPEG(const string &filename) {
     jpeg_dec::JPEGDec dec(filename);
     dec.Parser();
     map_[filename] = dec.get_header();
+    spdlog::info("put image {}", filename);
     return true;
 }
 JPEG_HEADER *JCache::getHeader(const string &filename) {
     auto e = map_.find(filename);
     if (e != map_.end()) {
-        return &e->second;
+        JPEG_HEADER *ret = static_cast<JPEG_HEADER *>(create_jpeg_header());
+        ret->block_offsets = e->second.block_offsets;
+        ret->blocks_num = e->second.blocks_num;
+        ret->dht = e->second.dht;
+        ret->dqt_table = e->second.dqt_table;
+        ret->height = e->second.height;
+        ret->sof0 = e->second.sof0;
+        ret->sos_first_part = e->second.sos_first_part;
+        ret->sos_second_part = e->second.sos_second_part;
+        ret->status = e->second.status;
+        ret->width = e->second.width;
+        return ret;
     }
     return nullptr;
 }
 JPEG_HEADER *JCache::getHeaderwithCrop(const string &filename, int offset_x, int offset_y, int roi_width,
                                        int roi_height) {
-    auto header = getHeader(filename);
-    if (header == nullptr) {
+    auto e = map_.find(filename);
+    if (e == map_.end()) {
         return nullptr;
     }
+    auto header = &e->second;
     return static_cast<JPEG_HEADER *>(onlineROI(header, offset_x, offset_y, roi_width, roi_height));
 }
+
+JPEGCacheHandler::JPEGCacheHandler(){
+
+};
+
+void JPEGCacheHandler::setJCache(JCache *jc) { this->jcache = jc; }
+
+void JPEGCacheHandler::get(std::string &_return, const std::string &filename) {
+    _return.resize(0);
+    auto header = std::unique_ptr<JPEG_HEADER>(jcache->getHeader(filename));
+    if (header) {
+        std::stringstream ss(std::ios::out | std::ios::binary);
+        cereal::BinaryOutputArchive archive(ss);
+        archive(*header);
+        _return = ss.str();
+        spdlog::info("serialized_str len: {}", _return.size());
+    }
+}
+
+void JPEGCacheHandler::getWithROI(std::string &_return, const std::string &filename, const int32_t offset_x,
+                                  const int32_t offset_y, const int32_t roi_w, const int32_t roi_h) {
+    _return.resize(0);
+    auto header = std::unique_ptr<JPEG_HEADER>(jcache->getHeaderwithCrop(filename, offset_x, offset_y, roi_w, roi_h));
+    if (header) {
+        std::stringstream ss(std::ios::out | std::ios::binary);
+        cereal::BinaryOutputArchive archive(ss);
+        archive(*header);
+        _return = ss.str();
+        spdlog::info("serialized_str len: {}", _return.size());
+    }
+}
+
+int32_t JPEGCacheHandler::put(const std::string &filename, const std::string &content) {
+    bool ret = jcache->putJPEG(reinterpret_cast<const uint8_t *>(content.data()), content.size(), filename);
+    return ret ? 0 : 1;
+}
+
+JPEGCacheClient::JPEGCacheClient(const string &host, int port) {
+    socket = std::make_shared<att::TSocket>(host, port);
+    transport = std::shared_ptr<att::TFramedTransport>(new att::TFramedTransport(socket));
+    protocol = std::shared_ptr<atp::TProtocol>(new atp::TBinaryProtocol(transport));
+    client = std::make_shared<JPEGCache::JPEGCacheClient>(protocol);
+    transport->open();
+};
+JPEGCacheClient::~JPEGCacheClient() { transport->close(); };
+
+JPEG_HEADER JPEGCacheClient::get(const std::string &filename) {
+    string header_str;
+    client->get(header_str, filename);
+    assert(header_str.size() > 0);
+    std::stringstream iss(header_str, std::ios::in | std::ios::binary);
+    cereal::BinaryInputArchive iarchive(iss);
+
+    JPEG_HEADER header;
+    iarchive(header);
+    return header;
+}
+JPEG_HEADER JPEGCacheClient::getWithROI(const std::string &filename, int32_t offset_x, int32_t offset_y, int32_t roi_w,
+                                        int32_t roi_h) {
+    JPEG_HEADER header;
+    string header_str;
+    client->getWithROI(header_str, filename, offset_x, offset_y, roi_w, roi_h);
+    assert(header_str.size() > 0);
+
+    std::stringstream iss(header_str, std::ios::in | std::ios::binary);
+    cereal::BinaryInputArchive iarchive(iss);
+    iarchive(header);
+    return header;
+}
+int32_t JPEGCacheClient::put(const std::string &filename, const std::string &content) {
+    return client->put(filename, content);
+}
+int32_t JPEGCacheClient::put(const std::string &filename, const uint8_t *content_raw, size_t content_len) {
+    std::string tmp(content_raw, content_raw + content_len);
+    return client->put(filename, tmp);
+}
+
 }  // namespace jcache

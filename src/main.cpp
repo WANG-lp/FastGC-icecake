@@ -1,7 +1,7 @@
 #include "../include/JCache.hpp"
 
 int main(int argc, char** argv) {
-    jcache::JCache cache;
-    cache.putJPEG(argv[1]);
+    jcache::JCache cache(8090);
+    cache.serve();
     return 0;
 }

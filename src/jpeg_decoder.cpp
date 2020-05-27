@@ -226,6 +226,7 @@ JPEGDec::JPEGDec(const string &fname) {
 }
 
 JPEGDec::JPEGDec(const vector<uint8_t> &image) { this->data = image; }
+JPEGDec::JPEGDec(const uint8_t *image_raw, size_t len) { this->data = vector<uint8_t>(image_raw, image_raw + len); }
 JPEGDec::~JPEGDec() {}
 
 void JPEGDec::Parser() {

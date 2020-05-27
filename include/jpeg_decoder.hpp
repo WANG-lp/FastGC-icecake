@@ -225,6 +225,7 @@ class JPEGDec {
    public:
     JPEGDec(const string &fname);
     JPEGDec(const vector<uint8_t> &image);
+    JPEGDec(const uint8_t *image_raw, size_t len);
     ~JPEGDec();
     void Parser();
     size_t Parser_app0(uint8_t *data_ptr);
