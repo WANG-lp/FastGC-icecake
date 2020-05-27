@@ -293,7 +293,7 @@ void JPEGDec::Parser() {
                 break;
             }
             case COM_SYM: {
-                spdlog::info("COM, begin data, offset: {}", off);
+                // spdlog::info("COM, begin data, offset: {}", off);
                 uint16_t len = big_endian_bytes2_uint(data.data() + off + 1);
                 // // string com(data.data() + off + 1 + 2, data.data() + off + 1 + len);
                 // // off += 1 + len;
@@ -829,7 +829,7 @@ size_t JPEGDec::Scan_MCUs(uint8_t *data_ptr) {
 
                 for (uint16_t h = 0; h < height; h++) {
                     for (uint16_t w = 0; w < width; w++) {
-                        vector<float> block;
+                        vector<int16_t> block;
                         block.resize(1);
 
                         size_t pos_byte = bitStream.get_global_offset();
@@ -857,7 +857,7 @@ size_t JPEGDec::Scan_MCUs(uint8_t *data_ptr) {
                                     img.last_dc[id] += bitStream.read_value(dc_value);
                                     block[0] = img.last_dc[id];
                                 }
-                                images.recordFileds.dc_value[recoredFileds_real_pos] = (int16_t) block[0];
+                                images.recordFileds.dc_value[recoredFileds_real_pos] = block[0];
                                 break;
                             }
                             // not found
@@ -927,8 +927,9 @@ size_t JPEGDec::Scan_MCUs(uint8_t *data_ptr) {
     images.recordFileds.scan_finish = true;
     images.recordFileds.data_len = bitStream.get_ptr() - data_ptr;
     set_sos_2nd(&header, images.recordFileds.data_len, data_ptr);
+    size_t base = images.recordFileds.blockpos[0].first;
     for (size_t i = 0; i < images.recordFileds.blockpos.size(); i++) {
-        header.block_offsets.push_back({(int) images.recordFileds.blockpos[i].first,
+        header.block_offsets.push_back({static_cast<int>(images.recordFileds.blockpos[i].first - base),
                                         images.recordFileds.blockpos[i].second, images.recordFileds.dc_value[i]});
     }
     header.blocks_num = images.recordFileds.blockpos.size();
@@ -936,15 +937,7 @@ size_t JPEGDec::Scan_MCUs(uint8_t *data_ptr) {
     return bitStream.get_ptr() - data_ptr;
 }
 
-JPEG_HEADER JPEGDec::get_header() {
-    if (header.block_offsets[0].byte_offset != 0) {
-        size_t base = header.block_offsets[0].byte_offset;
-        for (size_t i = 0; i < header.block_offsets.size(); i++) {
-            header.block_offsets[i].byte_offset -= base;
-        }
-    }
-    return this->header;
-}
+JPEG_HEADER JPEGDec::get_header() { return this->header; }
 
 void JPEGDec::Dequantize() {
     auto &sofinfo = images.sof;

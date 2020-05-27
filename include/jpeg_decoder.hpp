@@ -105,13 +105,13 @@ struct Image_struct {
     vector<uint8_t> table_mapping_ac;
     MCUs mcus;
     RecoredFileds recordFileds;
-    vector<float> last_dc;
+    vector<int16_t> last_dc;
     vector<RGBPix> rgb;
     size_t sof0_offset = 0;
 
     Image_struct() {
-        for (int i = 0; i < 3; i++) {
-            last_dc.push_back(0.0f);
+        for (int i = 0; i < 4; i++) {
+            last_dc.push_back(0.0);
         }
     }
 };
@@ -174,7 +174,7 @@ class BitStream {
         }
         return ret;
     }
-    float read_value(uint8_t len) { return (float) read_value_int16(len); }
+    int16_t read_value(uint8_t len) { return read_value_int16(len); }
     int16_t read_value_int16(uint8_t len) {
         int16_t ret = 1;
         uint8_t first_bit = get_a_bit();
@@ -209,12 +209,18 @@ class BitStream {
     uint8_t pos;
     uint8_t *cur_ptr;   // current ptr position
     uint8_t *base_ptr;  // the base ptr
+    bool done = false;
 
     void forward_a_byte() {
+        assert(!done);
         cur_ptr = ptr;
         pos = 0;
         ptr++;
         if (JPEG_SAFE && cur_ptr[0] == 0xFF) {  // JPEG: 0xFF folows a 0x00
+            if (ptr[0] == EOI_SYM) {
+                done = true;
+                return;
+            }
             assert(ptr[0] == 0x00);
             ptr++;
         }

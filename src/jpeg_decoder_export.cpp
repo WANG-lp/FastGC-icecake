@@ -180,11 +180,11 @@ void *onlineROI(void *jpeg_header_raw, int offset_x, int offset_y, int roi_width
     int mcu_h_end = (pixel_h_end + 7) / 8;
     int mcu_w_end = (pixel_w_end + 7) / 8;
 
-    printf("pixel_h_start: %d, pixel_h_end: %d\n", pixel_h_start, pixel_h_end);
-    printf("pixel_w_start: %d, pixel_w_end: %d\n", pixel_w_start, pixel_w_end);
+    // printf("pixel_h_start: %d, pixel_h_end: %d\n", pixel_h_start, pixel_h_end);
+    // printf("pixel_w_start: %d, pixel_w_end: %d\n", pixel_w_start, pixel_w_end);
 
-    printf("mcu_h_start: %d, mcu_h_end: %d\n", mcu_h_start, mcu_h_end);
-    printf("mcu_w_start: %d, mcu_w_end: %d\n", mcu_w_start, mcu_w_end);
+    // printf("mcu_h_start: %d, mcu_h_end: %d\n", mcu_h_start, mcu_h_end);
+    // printf("mcu_w_start: %d, mcu_w_end: %d\n", mcu_w_start, mcu_w_end);
 
     struct JPEG_HEADER *ret = static_cast<struct JPEG_HEADER *>(create_jpeg_header());
     // copy constant parts
@@ -201,6 +201,8 @@ void *onlineROI(void *jpeg_header_raw, int offset_x, int offset_y, int roi_width
     int block_count = 0;
     int curr_byte_pos = 0;
     vector<uint8_t> sos2_data;
+    sos2_data.resize(jpeg_header->sos_second_part.size());
+    // sos2_data = jpeg_header->sos_second_part;
 
     for (int h = mcu_h_start; h < mcu_h_end; h++) {
         int start_mcu_id = h * width_mcu + mcu_w_start;
@@ -208,24 +210,27 @@ void *onlineROI(void *jpeg_header_raw, int offset_x, int offset_y, int roi_width
         int start_block_id = start_mcu_id * 3;
         int end_block_id = end_mcu_id * 3;
         // printf("mcu: %d,%d\n", start_mcu_id, end_mcu_id);
+        // printf("block: %d,%d\n", start_block_id, end_block_id);
+
         int start_byte_off = jpeg_header->block_offsets[start_block_id].byte_offset;
         int end_byte_off = (end_block_id) < jpeg_header->blocks_num
                                ? jpeg_header->block_offsets[end_block_id].byte_offset
                                : jpeg_header->sos_second_part.size();
 
-        sos2_data.resize(curr_byte_pos + (end_byte_off - start_byte_off));
         memcpy(sos2_data.data() + curr_byte_pos, jpeg_header->sos_second_part.data() + start_byte_off,
-               end_byte_off - start_byte_off);
+               end_byte_off - start_byte_off + 1);
 
         for (int block_id = start_block_id; block_id < end_block_id; block_id++) {
             int tmp_byte_off = curr_byte_pos + (jpeg_header->block_offsets[block_id].byte_offset - start_byte_off);
+            // int tmp_byte_off = jpeg_header->block_offsets[block_id].byte_offset;
             block_pos_s[block_count] = {tmp_byte_off, jpeg_header->block_offsets[block_id].bit_offset,
                                         jpeg_header->block_offsets[block_id].dc_value};
             block_count++;
         }
-        curr_byte_pos += end_byte_off - start_byte_off;
+        curr_byte_pos += end_byte_off - start_byte_off + 1;
     }
 
+    sos2_data.resize(curr_byte_pos);
     ret->blocks_num = block_count;
     ret->sos_second_part = sos2_data;
 
@@ -237,7 +242,7 @@ void *onlineROI(void *jpeg_header_raw, int offset_x, int offset_y, int roi_width
     bytes2_big_endian_uint(pixel_w_end - pixel_w_start, ret->sof0.data() + 5);
     int height = big_endian_bytes2_uint(ret->sof0.data() + 3);
     int width = big_endian_bytes2_uint(ret->sof0.data() + 5);
-    printf("height: %d, width: %d\n", height, width);
+    // printf("height: %d, width: %d\n", height, width);
     // for (int i = 0; i < total_blocks; i++) {
     //     int flag = 1;
     //     for (int c = 0; c < 1; c++) {
