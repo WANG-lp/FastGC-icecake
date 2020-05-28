@@ -74,21 +74,31 @@ void JCache::server_func() {
 bool JCache::putJPEG(const uint8_t *image_raw, size_t len, const string &filename) {
     jpeg_dec::JPEGDec dec(image_raw, len);
     dec.Parser();
-    map_[filename] = dec.get_header();
+    auto header = dec.get_header();
+    if (header.status != 1) {
+        return false;
+    }
+    map_[filename] = header;
     return true;
 }
 bool JCache::putJPEG(const vector<uint8_t> &image, const string &filename) {
     jpeg_dec::JPEGDec dec(image);
     dec.Parser();
-    map_[filename] = dec.get_header();
-    spdlog::info("put image {}", filename);
+    auto header = dec.get_header();
+    if (header.status != 1) {
+        return false;
+    }
+    map_[filename] = header;
     return true;
 }
 bool JCache::putJPEG(const string &filename) {
     jpeg_dec::JPEGDec dec(filename);
     dec.Parser();
-    map_[filename] = dec.get_header();
-    spdlog::info("put image {}", filename);
+    auto header = dec.get_header();
+    if (header.status != 1) {
+        return false;
+    }
+    map_[filename] = header;
     return true;
 }
 JPEG_HEADER *JCache::getHeader(const string &filename) {

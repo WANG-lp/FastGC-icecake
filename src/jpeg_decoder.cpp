@@ -312,6 +312,10 @@ void JPEGDec::Parser() {
                 off += 1 + len;
                 break;
             }
+            case DRI_SYM: {
+                off += Parser_DRI(data.data() + off + 1);
+                break;
+            }
             default: {
                 off += 1;
                 spdlog::info("Unknown marker, offset: {}, byte: {}", off, c);
@@ -385,6 +389,16 @@ size_t JPEGDec::Parser_DQT(uint8_t *data_ptr) {
         //     printf("\n");
         // }
     }
+    return ret;
+}
+
+size_t JPEGDec::Parser_DRI(uint8_t *data_ptr) {
+    uint8_t *data_raw = data_ptr;
+    auto len = big_endian_bytes2_uint(data_raw);
+    auto ret = len;
+    int restart_interval = big_endian_bytes2_uint(data_raw + 2);
+    images.restart_interval = restart_interval;
+    spdlog::info("found restart marker, rst interval {}", restart_interval);
     return ret;
 }
 
@@ -818,8 +832,10 @@ size_t JPEGDec::Scan_MCUs(uint8_t *data_ptr) {
     images.recordFileds.blockpos.resize(ww * hh * mcu_has_blocks);
     images.recordFileds.dc_value.resize(ww * hh * mcu_has_blocks);
 
-    for (uint16_t i = 0; i < hh; i++) {                                             // h - mcu
-        for (uint16_t j = 0; j < ww; j++) {                                         // w - mcu
+    int mcu_count = 0;
+    for (uint16_t i = 0; i < hh; i++) {  // h - mcu
+        for (uint16_t j = 0; j < ww; j++) {
+            // w - mcu
             for (uint8_t id = 0; id < 3; id++) {                                    // color channel
                 uint16_t height = sof_info.component_infos[id].vertical_sampling;   // h- block
                 uint16_t width = sof_info.component_infos[id].horizontal_sampling;  // w - block
@@ -920,6 +936,14 @@ size_t JPEGDec::Scan_MCUs(uint8_t *data_ptr) {
                         // assert(block.size() == 64);
                         // img.mcus.mcu[id].push_back(block);
                     }
+                }
+            }
+            if (img.restart_interval > 0) {  // enable restart marker
+                mcu_count++;
+                if (mcu_count == img.restart_interval) {
+                    mcu_count = 0;
+                    std::fill(img.last_dc.begin(), img.last_dc.end(), 0);
+                    bitStream.skip_to_next_byte_with_rst();
                 }
             }
         }

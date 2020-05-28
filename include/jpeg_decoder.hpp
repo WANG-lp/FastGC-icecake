@@ -28,6 +28,7 @@ const uint8_t DHT_SYM = 0xC4;   // DHT (define huffman table)
 const uint8_t SOF0_SYM = 0xC0;  // start of frame (baseline)
 const uint8_t SOS_SYM = 0xDA;   // SOS, start of scan
 const uint8_t COM_SYM = 0xFE;   // comment
+const uint8_t DRI_SYM = 0xDD;   // restart_marker
 
 const uint8_t POS_RECORD_SEG1 = 9;  // 9 bit per block offset(record a relative length)
 const uint8_t POS_RECORD_SEG2 = 3;  // 3 bit to record which bit in a byte
@@ -108,7 +109,7 @@ struct Image_struct {
     vector<int16_t> last_dc;
     vector<RGBPix> rgb;
     size_t sof0_offset = 0;
-
+    int restart_interval = 0;
     Image_struct() {
         for (int i = 0; i < 4; i++) {
             last_dc.push_back(0.0);
@@ -199,6 +200,12 @@ class BitStream {
         }
     }
 
+    void skip_to_next_byte_with_rst() {
+        if (pos != 0) {
+            forward_a_byte();
+        }
+    }
+
     uint8_t *get_ptr() { return ptr; }
     size_t get_global_offset() { return cur_ptr - base_ptr; }
     uint8_t get_bit_offset() { return pos; }
@@ -210,6 +217,7 @@ class BitStream {
     uint8_t *cur_ptr;   // current ptr position
     uint8_t *base_ptr;  // the base ptr
     bool done = false;
+    uint8_t current_rst_marker = 0xD0;
 
     void forward_a_byte() {
         assert(!done);
@@ -217,12 +225,22 @@ class BitStream {
         pos = 0;
         ptr++;
         if (JPEG_SAFE && cur_ptr[0] == 0xFF) {  // JPEG: 0xFF folows a 0x00
-            if (ptr[0] == EOI_SYM) {
+            if (ptr[0] == 0x00) {
+                ptr++;
+            } else if (ptr[0] == EOI_SYM) {
                 done = true;
                 return;
+            } else if (ptr[0] <= 0xD7 && ptr[0] >= 0xD0) {
+                if (ptr[0] != current_rst_marker) {
+                    printf("error rst marker, expect: %x, found: %d\n", current_rst_marker, ptr[0]);
+                }
+                current_rst_marker++;
+                if (current_rst_marker > 0xD7) {
+                    current_rst_marker = 0xD0;
+                }
+                ptr++;
+                forward_a_byte();  // forward a byte, (may be leading by 0xff)
             }
-            assert(ptr[0] == 0x00);
-            ptr++;
         }
     };
 };
@@ -241,6 +259,7 @@ class JPEGDec {
     size_t Parser_SOS(uint8_t *data_ptr);
     size_t Parser_MCUs(uint8_t *data_ptr);
     size_t Scan_MCUs(uint8_t *data_ptr);
+    size_t Parser_DRI(uint8_t *data_ptr);
     void Decoding_on_BlockOffset();
     void compact_boundary();
     void WriteBoundarytoFile(const string &fname);
