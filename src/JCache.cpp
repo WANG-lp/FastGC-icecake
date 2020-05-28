@@ -10,13 +10,8 @@
 #include <cereal/types/vector.hpp>
 
 template <class Archive>
-void serialize(Archive &archive, block_offset_s &m) {
-    archive(m.byte_offset, m.bit_offset, m.dc_value);
-}
-
-template <class Archive>
 void serialize(Archive &archive, JPEG_HEADER &m) {
-    archive(m.dqt_table, m.sof0, m.dht, m.sos_first_part, m.sos_second_part, m.block_offsets, m.blocks_num, m.width,
+    archive(m.dqt_table, m.sof0, m.dht, m.sos_first_part, m.sos_second_part, m.blockpos_compact, m.blocks_num, m.width,
             m.height, m.status);
 }
 
@@ -100,7 +95,7 @@ JPEG_HEADER *JCache::getHeader(const string &filename) {
     auto e = map_.find(filename);
     if (e != map_.end()) {
         JPEG_HEADER *ret = static_cast<JPEG_HEADER *>(create_jpeg_header());
-        ret->block_offsets = e->second.block_offsets;
+        ret->blockpos_compact = e->second.blockpos_compact;
         ret->blocks_num = e->second.blocks_num;
         ret->dht = e->second.dht;
         ret->dqt_table = e->second.dqt_table;

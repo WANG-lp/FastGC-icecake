@@ -13,7 +13,10 @@ struct JPEG_HEADER {
     vector<vector<uint8_t>> dht;
     vector<uint8_t> sos_first_part;
     vector<uint8_t> sos_second_part;
-    vector<block_offset_s> block_offsets;
+    // |------16bit--------|-----13bit-----|---3bit---|
+    //       dc_value            offset      bit_offset
+    vector<uint32_t> blockpos_compact;
+    vector<block_offset_s> blockpos;
     int blocks_num;
 
     int width;

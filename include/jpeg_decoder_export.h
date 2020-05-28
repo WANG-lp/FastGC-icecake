@@ -12,6 +12,8 @@ extern "C" {
 #include <stddef.h>
 #include <stdint.h>
 
+// GPUJPEG is using plain C, we need C-style exported functions
+
 struct block_offset_s {
     int byte_offset;
     unsigned char bit_offset;
@@ -34,6 +36,8 @@ void set_sos_2nd(void* jpeg_header_raw, int length, const uint8_t* sos_2nd);
 void set_block_offsets(void* jpeg_header_raw, const struct block_offset_s* block_offs, int length);
 void set_jpeg_header_status(void* jpeg_header_raw, uint8_t status);
 void set_jpeg_size(void* jpeg_header_raw, int width, int height);
+
+void restore_block_offset_from_compact(void* jpeg_header_raw);
 
 int get_dqt_table_size(void* jpeg_header_raw);
 uint8_t* get_dqt_table(void* jpeg_header_raw, int id);

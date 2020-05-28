@@ -82,20 +82,22 @@ uint8_t get_jpeg_header_status(void *jpeg_header_raw) {
 void set_block_offsets(void *jpeg_header_raw, const struct block_offset_s *block_offs, int length) {
     JPEG_HEADER *jpeg_header = static_cast<JPEG_HEADER *>(jpeg_header_raw);
     // jpeg_header->block_offsets = vector<struct block_offset_s>(block_offs, block_offs + length);
-    jpeg_header->block_offsets.resize(length);
+    jpeg_header->blockpos.resize(length);
     for (int i = 0; i < length; i++) {
-        jpeg_header->block_offsets[i].byte_offset = block_offs[i].byte_offset;
-        jpeg_header->block_offsets[i].bit_offset = block_offs[i].bit_offset;
+        jpeg_header->blockpos[i].byte_offset = block_offs[i].byte_offset;
+        jpeg_header->blockpos[i].bit_offset = block_offs[i].bit_offset;
 
-        jpeg_header->block_offsets[i].dc_value = block_offs[i].dc_value;
+        jpeg_header->blockpos[i].dc_value = block_offs[i].dc_value;
     }
     jpeg_header->blocks_num = length;
 }
 
 struct block_offset_s *get_block_offsets(void *jpeg_header_raw, int *length) {
     JPEG_HEADER *jpeg_header = static_cast<JPEG_HEADER *>(jpeg_header_raw);
+    assert(jpeg_header->status == 1 && jpeg_header->blocks_num > 0 &&
+           jpeg_header->blockpos.size() == jpeg_header->blocks_num);
     *length = jpeg_header->blocks_num;
-    return jpeg_header->block_offsets.data();
+    return jpeg_header->blockpos.data();
 }
 void set_jpeg_size(void *jpeg_header_raw, int width, int height) {
     JPEG_HEADER *jpeg_header = static_cast<JPEG_HEADER *>(jpeg_header_raw);
@@ -156,9 +158,25 @@ uint8_t *get_sos_2nd(void *jpeg_header_raw, int *length) {
     return jpeg_header->sos_second_part.data();
 }
 
+void restore_block_offset_from_compact(void *jpeg_header_raw) {
+    JPEG_HEADER *jpeg_header = static_cast<JPEG_HEADER *>(jpeg_header_raw);
+    assert(jpeg_header->status == 1 && jpeg_header->blocks_num > 0);
+
+    // restore block_offset
+    jpeg_header->blockpos.resize(jpeg_header->blocks_num);
+    int base_off = 0;
+    for (int i = 0; i < jpeg_header->blocks_num; i++) {
+        int16_t dc_value = (jpeg_header->blockpos_compact[i] >> 16);
+        int byte_offset = (jpeg_header->blockpos_compact[i] & 0xffff) >> 3;
+        uint8_t bit_offset = (jpeg_header->blockpos_compact[i] & 0x07);
+        jpeg_header->blockpos[i] = {byte_offset + base_off, bit_offset, dc_value};
+        base_off = jpeg_header->blockpos[i].byte_offset;
+    }
+}
+
 void *onlineROI(void *jpeg_header_raw, int offset_x, int offset_y, int roi_width, int roi_height) {
     JPEG_HEADER *jpeg_header = static_cast<JPEG_HEADER *>(jpeg_header_raw);
-    assert(jpeg_header->block_offsets.size() > 0 && jpeg_header->status == 1);
+    assert(jpeg_header->blocks_num > 0 && jpeg_header->status == 1);
 
     int width_mcu = (jpeg_header->width + 7) / 8;
 
@@ -186,6 +204,17 @@ void *onlineROI(void *jpeg_header_raw, int offset_x, int offset_y, int roi_width
     // printf("mcu_h_start: %d, mcu_h_end: %d\n", mcu_h_start, mcu_h_end);
     // printf("mcu_w_start: %d, mcu_w_end: %d\n", mcu_w_start, mcu_w_end);
 
+    // restore block_offset
+    vector<block_offset_s> tmp_block_offset(jpeg_header->blocks_num);
+    int base_off = 0;
+    for (int i = 0; i < jpeg_header->blocks_num; i++) {
+        int16_t dc_value = (jpeg_header->blockpos_compact[i] >> 16);
+        int byte_offset = (jpeg_header->blockpos_compact[i] & 0xffff) >> 3;
+        uint8_t bit_offset = (jpeg_header->blockpos_compact[i] & 0x07);
+        tmp_block_offset[i] = {byte_offset + base_off, bit_offset, dc_value};
+        base_off = tmp_block_offset[i].byte_offset;
+    }
+
     struct JPEG_HEADER *ret = static_cast<struct JPEG_HEADER *>(create_jpeg_header());
     // copy constant parts
     ret->dqt_table = jpeg_header->dqt_table;
@@ -194,9 +223,7 @@ void *onlineROI(void *jpeg_header_raw, int offset_x, int offset_y, int roi_width
 
     int total_blocks = 3 * (mcu_h_end - mcu_h_start) * (mcu_w_end - mcu_w_start);
 
-    ret->block_offsets.resize(total_blocks);
-    auto &block_pos_s = ret->block_offsets;
-    // printf("block_pos_s size: %d\n", block_pos_s.size());
+    vector<block_offset_s> new_block_offset(total_blocks);
 
     int block_count = 0;
     int curr_byte_pos = 0;
@@ -211,12 +238,12 @@ void *onlineROI(void *jpeg_header_raw, int offset_x, int offset_y, int roi_width
         // printf("mcu: %d,%d\n", start_mcu_id, end_mcu_id);
         // printf("block: %d,%d\n", start_block_id, end_block_id);
 
-        int start_byte_off = jpeg_header->block_offsets[start_block_id].byte_offset;
+        int start_byte_off = tmp_block_offset[start_block_id].byte_offset;
         int end_byte_off;
         uint8_t tmp_bit_off;
         if (end_block_id < jpeg_header->blocks_num) {
-            end_byte_off = jpeg_header->block_offsets[end_block_id].byte_offset;
-            tmp_bit_off = jpeg_header->block_offsets[end_block_id].bit_offset;
+            end_byte_off = tmp_block_offset[end_block_id].byte_offset;
+            tmp_bit_off = tmp_block_offset[end_block_id].bit_offset;
         } else {
             end_byte_off = jpeg_header->sos_second_part.size();
             tmp_bit_off = 0;
@@ -228,10 +255,10 @@ void *onlineROI(void *jpeg_header_raw, int offset_x, int offset_y, int roi_width
         memcpy(sos2_data.data() + curr_byte_pos, jpeg_header->sos_second_part.data() + start_byte_off, copy_len);
 
         for (int block_id = start_block_id; block_id < end_block_id; block_id++) {
-            int tmp_byte_off = curr_byte_pos + (jpeg_header->block_offsets[block_id].byte_offset - start_byte_off);
+            int tmp_byte_off = curr_byte_pos + (tmp_block_offset[block_id].byte_offset - start_byte_off);
             // int tmp_byte_off = jpeg_header->block_offsets[block_id].byte_offset;
-            block_pos_s[block_count] = {tmp_byte_off, jpeg_header->block_offsets[block_id].bit_offset,
-                                        jpeg_header->block_offsets[block_id].dc_value};
+            new_block_offset[block_count] = {tmp_byte_off, tmp_block_offset[block_id].bit_offset,
+                                             tmp_block_offset[block_id].dc_value};
             block_count++;
         }
         curr_byte_pos += copy_len;
@@ -240,6 +267,18 @@ void *onlineROI(void *jpeg_header_raw, int offset_x, int offset_y, int roi_width
     sos2_data.resize(curr_byte_pos);
     ret->blocks_num = block_count;
     ret->sos_second_part = sos2_data;
+
+    ret->blockpos_compact.resize(total_blocks);
+    // compact block offset
+    for (int i = total_blocks - 1; i > 0; i--) {
+        new_block_offset[i].byte_offset -= new_block_offset[i - 1].byte_offset;
+    }
+    for (int i = 0; i < total_blocks; i++) {
+        uint32_t compressed_blockpos = new_block_offset[i].dc_value << 16;
+        compressed_blockpos += ((new_block_offset[i].byte_offset & 0x1fff) << 3);
+        compressed_blockpos += new_block_offset[i].bit_offset & 0x07;
+        ret->blockpos_compact[i] = compressed_blockpos;
+    }
 
     // printf("total_blocks: %d\n", block_count);
     // assert(ret->blocks_num == jpeg_header->blocks_num);

@@ -928,11 +928,21 @@ size_t JPEGDec::Scan_MCUs(uint8_t *data_ptr) {
     images.recordFileds.data_len = bitStream.get_ptr() - data_ptr;
     set_sos_2nd(&header, images.recordFileds.data_len, data_ptr);
     size_t base = images.recordFileds.blockpos[0].first;
+    vector<size_t> tmp_offset(images.recordFileds.blockpos.size());
     for (size_t i = 0; i < images.recordFileds.blockpos.size(); i++) {
-        header.block_offsets.push_back({static_cast<int>(images.recordFileds.blockpos[i].first - base),
-                                        images.recordFileds.blockpos[i].second, images.recordFileds.dc_value[i]});
+        tmp_offset[i] = images.recordFileds.blockpos[i].first - base;
+    }
+    for (size_t i = images.recordFileds.blockpos.size() - 1; i > 0; i--) {  // relative offset
+        tmp_offset[i] = tmp_offset[i] - tmp_offset[i - 1];
+    }
+    for (size_t i = 0; i < images.recordFileds.blockpos.size(); i++) {
+        uint32_t compressed_blockpos = images.recordFileds.dc_value[i] << 16;
+        compressed_blockpos += ((tmp_offset[i] & 0x1fff) << 3);
+        compressed_blockpos += images.recordFileds.blockpos[i].second & 0x07;
+        header.blockpos_compact.push_back(compressed_blockpos);
     }
     header.blocks_num = images.recordFileds.blockpos.size();
+
     header.status = 1;
     return bitStream.get_ptr() - data_ptr;
 }
@@ -1115,7 +1125,7 @@ void JPEGDec::compact_boundary() {
     images.recordFileds.blockpos_compact = obitStream.get_data();
 };
 void JPEGDec::WriteBoundarytoFile(const string &fname) {
-    compact_boundary();
+    // compact_boundary();
 
     size_t off = images.sof0_offset;
     size_t len = 2;  // length size (16bit,64KiB range)
