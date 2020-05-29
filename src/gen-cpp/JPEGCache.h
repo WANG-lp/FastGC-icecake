@@ -24,6 +24,7 @@ class JPEGCacheIf {
   virtual ~JPEGCacheIf() {}
   virtual void get(std::string& _return, const std::string& filename) = 0;
   virtual void getWithROI(std::string& _return, const std::string& filename, const int32_t offset_x, const int32_t offset_y, const int32_t roi_w, const int32_t roi_h) = 0;
+  virtual void getRAW(std::string& _return, const std::string& filename) = 0;
   virtual int32_t put(const std::string& filename, const std::string& content) = 0;
 };
 
@@ -58,6 +59,9 @@ class JPEGCacheNull : virtual public JPEGCacheIf {
     return;
   }
   void getWithROI(std::string& /* _return */, const std::string& /* filename */, const int32_t /* offset_x */, const int32_t /* offset_y */, const int32_t /* roi_w */, const int32_t /* roi_h */) {
+    return;
+  }
+  void getRAW(std::string& /* _return */, const std::string& /* filename */) {
     return;
   }
   int32_t put(const std::string& /* filename */, const std::string& /* content */) {
@@ -302,6 +306,110 @@ class JPEGCache_getWithROI_presult {
 
 };
 
+typedef struct _JPEGCache_getRAW_args__isset {
+  _JPEGCache_getRAW_args__isset() : filename(false) {}
+  bool filename :1;
+} _JPEGCache_getRAW_args__isset;
+
+class JPEGCache_getRAW_args {
+ public:
+
+  JPEGCache_getRAW_args(const JPEGCache_getRAW_args&);
+  JPEGCache_getRAW_args& operator=(const JPEGCache_getRAW_args&);
+  JPEGCache_getRAW_args() : filename() {
+  }
+
+  virtual ~JPEGCache_getRAW_args() noexcept;
+  std::string filename;
+
+  _JPEGCache_getRAW_args__isset __isset;
+
+  void __set_filename(const std::string& val);
+
+  bool operator == (const JPEGCache_getRAW_args & rhs) const
+  {
+    if (!(filename == rhs.filename))
+      return false;
+    return true;
+  }
+  bool operator != (const JPEGCache_getRAW_args &rhs) const {
+    return !(*this == rhs);
+  }
+
+  bool operator < (const JPEGCache_getRAW_args & ) const;
+
+  uint32_t read(::apache::thrift::protocol::TProtocol* iprot);
+  uint32_t write(::apache::thrift::protocol::TProtocol* oprot) const;
+
+};
+
+
+class JPEGCache_getRAW_pargs {
+ public:
+
+
+  virtual ~JPEGCache_getRAW_pargs() noexcept;
+  const std::string* filename;
+
+  uint32_t write(::apache::thrift::protocol::TProtocol* oprot) const;
+
+};
+
+typedef struct _JPEGCache_getRAW_result__isset {
+  _JPEGCache_getRAW_result__isset() : success(false) {}
+  bool success :1;
+} _JPEGCache_getRAW_result__isset;
+
+class JPEGCache_getRAW_result {
+ public:
+
+  JPEGCache_getRAW_result(const JPEGCache_getRAW_result&);
+  JPEGCache_getRAW_result& operator=(const JPEGCache_getRAW_result&);
+  JPEGCache_getRAW_result() : success() {
+  }
+
+  virtual ~JPEGCache_getRAW_result() noexcept;
+  std::string success;
+
+  _JPEGCache_getRAW_result__isset __isset;
+
+  void __set_success(const std::string& val);
+
+  bool operator == (const JPEGCache_getRAW_result & rhs) const
+  {
+    if (!(success == rhs.success))
+      return false;
+    return true;
+  }
+  bool operator != (const JPEGCache_getRAW_result &rhs) const {
+    return !(*this == rhs);
+  }
+
+  bool operator < (const JPEGCache_getRAW_result & ) const;
+
+  uint32_t read(::apache::thrift::protocol::TProtocol* iprot);
+  uint32_t write(::apache::thrift::protocol::TProtocol* oprot) const;
+
+};
+
+typedef struct _JPEGCache_getRAW_presult__isset {
+  _JPEGCache_getRAW_presult__isset() : success(false) {}
+  bool success :1;
+} _JPEGCache_getRAW_presult__isset;
+
+class JPEGCache_getRAW_presult {
+ public:
+
+
+  virtual ~JPEGCache_getRAW_presult() noexcept;
+  std::string* success;
+
+  _JPEGCache_getRAW_presult__isset __isset;
+
+  uint32_t read(::apache::thrift::protocol::TProtocol* iprot);
+
+};
+
 typedef struct _JPEGCache_put_args__isset {
   _JPEGCache_put_args__isset() : filename(false), content(false) {}
   bool filename :1;
@@ -444,6 +552,9 @@ class JPEGCacheClient : virtual public JPEGCacheIf {
   void getWithROI(std::string& _return, const std::string& filename, const int32_t offset_x, const int32_t offset_y, const int32_t roi_w, const int32_t roi_h);
   void send_getWithROI(const std::string& filename, const int32_t offset_x, const int32_t offset_y, const int32_t roi_w, const int32_t roi_h);
   void recv_getWithROI(std::string& _return);
+  void getRAW(std::string& _return, const std::string& filename);
+  void send_getRAW(const std::string& filename);
+  void recv_getRAW(std::string& _return);
   int32_t put(const std::string& filename, const std::string& content);
   void send_put(const std::string& filename, const std::string& content);
   int32_t recv_put();
@@ -464,12 +575,14 @@ class JPEGCacheProcessor : public ::apache::thrift::TDispatchProcessor {
   ProcessMap processMap_;
   void process_get(int32_t seqid, ::apache::thrift::protocol::TProtocol* iprot, ::apache::thrift::protocol::TProtocol* oprot, void* callContext);
   void process_getWithROI(int32_t seqid, ::apache::thrift::protocol::TProtocol* iprot, ::apache::thrift::protocol::TProtocol* oprot, void* callContext);
+  void process_getRAW(int32_t seqid, ::apache::thrift::protocol::TProtocol* iprot, ::apache::thrift::protocol::TProtocol* oprot, void* callContext);
   void process_put(int32_t seqid, ::apache::thrift::protocol::TProtocol* iprot, ::apache::thrift::protocol::TProtocol* oprot, void* callContext);
  public:
   JPEGCacheProcessor(::std::shared_ptr<JPEGCacheIf> iface) :
     iface_(iface) {
     processMap_["get"] = &JPEGCacheProcessor::process_get;
     processMap_["getWithROI"] = &JPEGCacheProcessor::process_getWithROI;
+    processMap_["getRAW"] = &JPEGCacheProcessor::process_getRAW;
     processMap_["put"] = &JPEGCacheProcessor::process_put;
   }
 
@@ -516,6 +629,16 @@ class JPEGCacheMultiface : virtual public JPEGCacheIf {
       ifaces_[i]->getWithROI(_return, filename, offset_x, offset_y, roi_w, roi_h);
     }
     ifaces_[i]->getWithROI(_return, filename, offset_x, offset_y, roi_w, roi_h);
+    return;
+  }
+
+  void getRAW(std::string& _return, const std::string& filename) {
+    size_t sz = ifaces_.size();
+    size_t i = 0;
+    for (; i < (sz - 1); ++i) {
+      ifaces_[i]->getRAW(_return, filename);
+    }
+    ifaces_[i]->getRAW(_return, filename);
     return;
   }
 
@@ -566,6 +689,9 @@ class JPEGCacheConcurrentClient : virtual public JPEGCacheIf {
   void getWithROI(std::string& _return, const std::string& filename, const int32_t offset_x, const int32_t offset_y, const int32_t roi_w, const int32_t roi_h);
   int32_t send_getWithROI(const std::string& filename, const int32_t offset_x, const int32_t offset_y, const int32_t roi_w, const int32_t roi_h);
   void recv_getWithROI(std::string& _return, const int32_t seqid);
+  void getRAW(std::string& _return, const std::string& filename);
+  int32_t send_getRAW(const std::string& filename);
+  void recv_getRAW(std::string& _return, const int32_t seqid);
   int32_t put(const std::string& filename, const std::string& content);
   int32_t send_put(const std::string& filename, const std::string& content);
   int32_t recv_put(const int32_t seqid);

@@ -30,12 +30,13 @@ set(CUDA_SRC
         cuda/cuda.cuh
         cuda/sub.cu
         )
-add_library(icecake_c STATIC ${CPP_SRC} ${CUDA_SRC})
-target_link_libraries(icecake_c PRIVATE Threads::Threads ${CUDA_LIBRARIES} OpenMP::OpenMP_CXX ${OpenCV_LIBS})
-set_property(TARGET icecake_c PROPERTY POSITION_INDEPENDENT_CODE ON)
+#add_library(icecake_c STATIC ${CPP_SRC} ${CUDA_SRC})
+#target_link_libraries(icecake_c PRIVATE Threads::Threads ${CUDA_LIBRARIES} OpenMP::OpenMP_CXX ${OpenCV_LIBS})
+#set_property(TARGET icecake_c PROPERTY POSITION_INDEPENDENT_CODE ON)
 
-pybind11_add_module(pyicecake SHARED icecake-python.cpp ${CPP_SRC})
-target_link_libraries(pyicecake PRIVATE Threads::Threads ${CUDA_LIBRARIES} OpenMP::OpenMP_CXX ${OpenCV_LIBS})
+#pybind11_add_module(pyicecake SHARED icecake-python.cpp ${CPP_SRC})
+#target_link_libraries(pyicecake PRIVATE Threads::Threads ${CUDA_LIBRARIES} OpenMP::OpenMP_CXX ${OpenCV_LIBS})
+
 
 if (BUILD_DALI_PLUGIN)
     add_subdirectory(dali-ops)
@@ -51,6 +52,7 @@ set(DECODER_CPP_SRC
 
 add_library(jpegdec ${DECODER_CPP_SRC})
 target_link_libraries(jpegdec PRIVATE Threads::Threads ${THRIFT_LIBRARIES} ${CUDA_LIBRARIES} OpenMP::OpenMP_CXX)
+set_property(TARGET jpegdec PROPERTY POSITION_INDEPENDENT_CODE ON)
 
 add_executable(jcache_server main.cpp)
 target_link_libraries(jcache_server PRIVATE Threads::Threads OpenMP::OpenMP_CXX jpegdec)
@@ -78,3 +80,7 @@ set_target_properties(gpujpeg-bin PROPERTIES OUTPUT_NAME "gpujpeg")
 
 cuda_add_executable(gpujpeg_test ${CMAKE_SOURCE_DIR}/GPUJPEG/src/decode_test.cpp)
 target_link_libraries(gpujpeg_test gpujpeg OpenMP::OpenMP_CXX jpegdec)
+
+pybind11_add_module(pjcache SHARED JCache-python.cpp)
+target_link_libraries(pjcache PRIVATE Threads::Threads ${CUDA_LIBRARIES} gpujpeg OpenMP::OpenMP_CXX jpegdec)
+

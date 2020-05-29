@@ -8,6 +8,7 @@
 #include <cereal/archives/binary.hpp>
 #include <cereal/types/memory.hpp>
 #include <cereal/types/vector.hpp>
+#include <fstream>
 
 template <class Archive>
 void serialize(Archive &archive, JPEG_HEADER &m) {
@@ -79,6 +80,7 @@ bool JCache::putJPEG(const uint8_t *image_raw, size_t len, const string &filenam
         return false;
     }
     map_[filename] = header;
+    map_raw_[filename] = string(image_raw, image_raw + len);
     return true;
 }
 bool JCache::putJPEG(const vector<uint8_t> &image, const string &filename) {
@@ -89,6 +91,7 @@ bool JCache::putJPEG(const vector<uint8_t> &image, const string &filename) {
         return false;
     }
     map_[filename] = header;
+    map_raw_[filename] = string(image.begin(), image.end());
     return true;
 }
 bool JCache::putJPEG(const string &filename) {
@@ -99,8 +102,19 @@ bool JCache::putJPEG(const string &filename) {
         return false;
     }
     map_[filename] = header;
+    auto img_data = dec.get_image_data();
+    map_raw_[filename] = string(img_data.begin(), img_data.end());
     return true;
 }
+
+string JCache::getRAWData(const string &filename) {
+    auto e = map_raw_.find(filename);
+    if (e != map_raw_.end()) {
+        return e->second;
+    }
+    return "";
+}
+
 JPEG_HEADER *JCache::getHeader(const string &filename) {
     auto e = map_.find(filename);
     if (e != map_.end()) {
@@ -159,6 +173,9 @@ void JPEGCacheHandler::getWithROI(std::string &_return, const std::string &filen
         spdlog::info("serialized_str len: {}", _return.size());
     }
 }
+void JPEGCacheHandler::getRAW(std::string &_return, const std::string &filename) {
+    _return = jcache->getRAWData(filename);
+}
 
 int32_t JPEGCacheHandler::put(const std::string &filename, const std::string &content) {
     bool ret = jcache->putJPEG(reinterpret_cast<const uint8_t *>(content.data()), content.size(), filename);
@@ -174,7 +191,7 @@ JPEGCacheClient::JPEGCacheClient(const string &host, int port) {
 };
 JPEGCacheClient::~JPEGCacheClient() { transport->close(); };
 
-JPEG_HEADER JPEGCacheClient::get(const std::string &filename) {
+JPEG_HEADER *JPEGCacheClient::get(const std::string &filename) {
     string header_str;
     client->get(header_str, filename);
     assert(header_str.size() > 0);
@@ -183,13 +200,13 @@ JPEG_HEADER JPEGCacheClient::get(const std::string &filename) {
     std::stringstream iss(header_str, std::ios::in | std::ios::binary);
     cereal::BinaryInputArchive iarchive(iss);
 
-    JPEG_HEADER header;
-    iarchive(header);
+    JPEG_HEADER *header = static_cast<JPEG_HEADER *>(create_jpeg_header());
+    iarchive(*header);
     return header;
 }
-JPEG_HEADER JPEGCacheClient::getWithROI(const std::string &filename, int32_t offset_x, int32_t offset_y, int32_t roi_w,
-                                        int32_t roi_h) {
-    JPEG_HEADER header;
+JPEG_HEADER *JPEGCacheClient::getWithROI(const std::string &filename, int32_t offset_x, int32_t offset_y, int32_t roi_w,
+                                         int32_t roi_h) {
+
     string header_str;
     client->getWithROI(header_str, filename, offset_x, offset_y, roi_w, roi_h);
     assert(header_str.size() > 0);
@@ -197,7 +214,8 @@ JPEG_HEADER JPEGCacheClient::getWithROI(const std::string &filename, int32_t off
 
     std::stringstream iss(header_str, std::ios::in | std::ios::binary);
     cereal::BinaryInputArchive iarchive(iss);
-    iarchive(header);
+    JPEG_HEADER *header = static_cast<JPEG_HEADER *>(create_jpeg_header());
+    iarchive(*header);
     return header;
 }
 int32_t JPEGCacheClient::put(const std::string &filename, const std::string &content) {
@@ -206,6 +224,22 @@ int32_t JPEGCacheClient::put(const std::string &filename, const std::string &con
 int32_t JPEGCacheClient::put(const std::string &filename, const uint8_t *content_raw, size_t content_len) {
     std::string tmp(content_raw, content_raw + content_len);
     return client->put(filename, tmp);
+}
+int32_t JPEGCacheClient::put(const std::string &filename, const vector<uint8_t> &content) {
+    return put(filename, content.data(), content.size());
+}
+int32_t JPEGCacheClient::put(const std::string &filename) {
+    std::ifstream ifs(filename, std::ios::ate | std::ios::binary);
+    if (!ifs.good()) {
+        printf("error while opening file %s\n", filename.c_str());
+        return 1;
+    }
+    size_t fsize = ifs.tellg();
+    ifs.seekg(0, ifs.beg);
+    vector<uint8_t> tmp_vec(fsize);
+    ifs.read(reinterpret_cast<char *>(tmp_vec.data()), fsize);
+
+    return put(filename, tmp_vec);
 }
 
 }  // namespace jcache

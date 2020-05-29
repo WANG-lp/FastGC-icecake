@@ -158,10 +158,11 @@ int RPC_test(const string& fname, uint8_t* image, size_t len) {
     assert(ret == 0);
     printf("put image ok\n");
     // auto header = jcacheclient.get("image1.jpeg");
-    auto header = jcacheclient.getWithROI("image1.jpeg", 0, 0, 224, 224);
-    restore_block_offset_from_compact(&header);
+    auto header_ptr = jcacheclient.getWithROI("image1.jpeg", 0, 0, 224, 224);
+    restore_block_offset_from_compact(header_ptr);
     auto fsize = get_filesize(fname.c_str());
     printf("file size: %f\n", fsize / 1024.0);
+    auto& header = *header_ptr;
 
     // jcache::JCache jc;
     // jc.putJPEG(image, len, "image1.jpeg");

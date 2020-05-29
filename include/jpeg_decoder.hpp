@@ -269,6 +269,7 @@ class JPEGDec {
     void IDCT();
     void toRGB();
     void Dump(const string &fname);
+    vector<uint8_t> get_image_data();
 
     Image_struct get_imgstruct();
 

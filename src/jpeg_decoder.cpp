@@ -1114,6 +1114,9 @@ void JPEGDec::Dump(const string &fname) {
     }
     writeBMP(fname.c_str(), chanR.data(), chanG.data(), chanB.data(), images.sof.width, images.sof.height);
 }
+
+vector<uint8_t> JPEGDec::get_image_data() { return data; }
+
 void JPEGDec::compact_boundary() {
     // compact block pos
     auto blockpos = images.recordFileds.blockpos;
