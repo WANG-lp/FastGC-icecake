@@ -5,7 +5,7 @@
 #include <fstream>
 #include <string>
 #include <vector>
-#include "../src/jpeg_decoder.hpp"
+#include "../include/jpeg_decoder.hpp"
 #include "cuda_runtime.h"
 
 using std::string;

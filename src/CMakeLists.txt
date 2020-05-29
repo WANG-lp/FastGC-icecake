@@ -1,11 +1,3 @@
-include(TestBigEndian)
-TEST_BIG_ENDIAN(IS_BIG_ENDIAN)
-if (IS_BIG_ENDIAN)
-    message(STATUS "System is BIG_ENDIAN")
-    add_definitions(-D_BIG_ENDIAN)
-else ()
-    message(STATUS "System is LITTLE_ENDIAN")
-endif ()
 find_package(Threads REQUIRED)
 find_package(OpenMP REQUIRED)
 find_package(CUDA 10.2 REQUIRED)
@@ -62,3 +54,27 @@ target_link_libraries(jpegdec PRIVATE Threads::Threads ${THRIFT_LIBRARIES} ${CUD
 
 add_executable(jcache_server main.cpp)
 target_link_libraries(jcache_server PRIVATE Threads::Threads OpenMP::OpenMP_CXX jpegdec)
+
+
+# GPUJPEG library
+include_directories(${CMAKE_SOURCE_DIR}/GPUJPEG)
+
+file(GLOB H_FILES ${CMAKE_SOURCE_DIR}/GPUJPEG/libgpujpeg/*.h)
+file(GLOB C_FILES ${CMAKE_SOURCE_DIR}/GPUJPEG/src/*.c ${CMAKE_SOURCE_DIR}/GPUJPEG/src/*/*.cpp ${CMAKE_SOURCE_DIR}/GPUJPEG/src/*.cu)
+
+cuda_add_library(gpujpeg ${H_FILES} ${C_FILES})
+set_target_properties(gpujpeg PROPERTIES SOVERSION 0)
+SET_TARGET_PROPERTIES(
+  gpujpeg
+PROPERTIES
+  PUBLIC_HEADER "${H_FILES}"
+)
+
+# GPUJPEG commmand-line application
+file(GLOB C_FILES ${CMAKE_SOURCE_DIR}/GPUJPEG/src/main.c)
+cuda_add_executable(gpujpeg-bin ${C_FILES})
+target_link_libraries(gpujpeg-bin gpujpeg OpenMP::OpenMP_CXX jpegdec)
+set_target_properties(gpujpeg-bin PROPERTIES OUTPUT_NAME "gpujpeg")
+
+cuda_add_executable(gpujpeg_test ${CMAKE_SOURCE_DIR}/GPUJPEG/src/decode_test.cpp)
+target_link_libraries(gpujpeg_test gpujpeg OpenMP::OpenMP_CXX jpegdec)

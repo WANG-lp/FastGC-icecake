@@ -848,17 +848,13 @@ size_t JPEGDec::Scan_MCUs(uint8_t *data_ptr) {
                         vector<int16_t> block;
                         block.resize(1);
 
-                        size_t pos_byte = bitStream.get_global_offset();
-                        uint8_t pos_bit = bitStream.get_bit_offset();
-
                         size_t recoredFileds_real_pos =
                             (i * ww + j) * mcu_has_blocks + mcu_has_blocks_prefix[id] + h * width + w;
+                        // skip DC value
+                        size_t pos_byte = bitStream.get_global_offset();
+                        uint8_t pos_bit = bitStream.get_bit_offset();
                         images.recordFileds.blockpos[recoredFileds_real_pos] =
                             std::pair<size_t, uint8_t>(pos_byte, pos_bit);
-
-                        // bitStream.init(data.data() + bitStream.get_global_offset(), bitStream.get_bit_offset(),
-                        //                data.data());
-
                         // for each block
                         // first 1 dc, then 63 ac
                         uint16_t tmp_codeword = bitStream.get_a_bit();

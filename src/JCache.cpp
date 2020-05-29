@@ -178,6 +178,8 @@ JPEG_HEADER JPEGCacheClient::get(const std::string &filename) {
     string header_str;
     client->get(header_str, filename);
     assert(header_str.size() > 0);
+    printf("serialize size: %f\n", header_str.size() / 1024.0);
+
     std::stringstream iss(header_str, std::ios::in | std::ios::binary);
     cereal::BinaryInputArchive iarchive(iss);
 
@@ -191,6 +193,7 @@ JPEG_HEADER JPEGCacheClient::getWithROI(const std::string &filename, int32_t off
     string header_str;
     client->getWithROI(header_str, filename, offset_x, offset_y, roi_w, roi_h);
     assert(header_str.size() > 0);
+    printf("serialize size: %f\n", header_str.size() / 1024.0);
 
     std::stringstream iss(header_str, std::ios::in | std::ios::binary);
     cereal::BinaryInputArchive iarchive(iss);
