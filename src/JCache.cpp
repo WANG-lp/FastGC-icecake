@@ -8,7 +8,9 @@
 #include <cereal/archives/binary.hpp>
 #include <cereal/types/memory.hpp>
 #include <cereal/types/vector.hpp>
+#include <cmath>
 #include <fstream>
+#include <random>
 
 template <class Archive>
 void serialize(Archive &archive, JPEG_HEADER &m) {
@@ -43,6 +45,11 @@ inline void bytes2_big_endian_uint(uint16_t len, uint8_t *target_ptr) {
 #endif
 }
 
+inline int nround(int n, int multiple = 8) {
+    n = ((n + multiple / 2) / multiple) * multiple;
+    return n;
+}
+
 JCache::JCache(int port) {
     jpegcachehandler = std::make_shared<JPEGCacheHandler>();
     jpegcachehandler->setJCache(this);
@@ -57,12 +64,25 @@ JCache::JCache(int port) {
     server_transport = std::make_shared<att::TServerSocket>("0.0.0.0", port);
     server_handle = std::make_shared<at::server::TThreadPoolServer>(processor, server_transport, transportFactory,
                                                                     protocolFactory, threadManager);
+
+    set_parameters(0, 0.08, 1.0, 3.0 / 4, 4.0 / 3);
+    thread_count = 0;
 };
 JCache::~JCache() {
     server_handle->stop();
     if (isStarted) {
         server_tid.join();
     }
+}
+
+void JCache::set_parameters(int seed, float s1, float s2, float r1, float r2) {
+    this->seed = seed;
+    scale1 = s1;
+    scale2 = s2;
+    ratio1 = r1;
+    ratio2 = r2;
+    aspect_ratio1 = std::log(r1);
+    aspect_ratio2 = std::log(r2);
 }
 
 void JCache::startServer() { server_tid = std::thread(std::bind(&JCache::server_func, this)); }
@@ -107,14 +127,6 @@ bool JCache::putJPEG(const string &filename) {
     return true;
 }
 
-string JCache::getRAWData(const string &filename) {
-    auto e = map_raw_.find(filename);
-    if (e != map_raw_.end()) {
-        return e->second;
-    }
-    return "";
-}
-
 JPEG_HEADER *JCache::getHeader(const string &filename) {
     auto e = map_.find(filename);
     if (e != map_.end()) {
@@ -143,12 +155,72 @@ JPEG_HEADER *JCache::getHeaderwithCrop(const string &filename, int offset_x, int
     return static_cast<JPEG_HEADER *>(onlineROI(header, offset_x, offset_y, roi_width, roi_height));
 }
 
+JPEG_HEADER *JCache::getHeaderRandomCrop(const string &filename) {
+    static thread_local int tid = thread_count++;
+    static thread_local std::mt19937 generator(seed + tid);
+
+    auto e = map_.find(filename);
+    if (e != map_.end()) {
+        int width = e->second.width;
+        int height = e->second.height;
+        size_t area = width * height;
+
+        bool found = false;
+        std::uniform_real_distribution<float> distribution(scale1, scale2);
+        std::uniform_real_distribution<float> distribution2(aspect_ratio1, aspect_ratio2);
+
+        size_t w, h, i, j;
+        for (int iter = 0; iter < 10; iter++) {  // try 10 times
+            size_t target_area = area * distribution(generator);
+            float a_ratio = std::exp(distribution2(generator));
+
+            w = size_t(std::sqrt(target_area * a_ratio));
+            h = size_t(std::sqrt(target_area / a_ratio));
+
+            w = nround(w);
+            h = nround(h);
+
+            if (w > 0 && w <= width && h > 0 && h <= height) {
+                found = true;
+                std::uniform_int_distribution<int> distribution3(0, width - w);
+                std::uniform_int_distribution<int> distribution4(0, height - h);
+                i = distribution3(generator);
+                j = distribution4(generator);
+                i = nround(i);
+                j = nround(j);
+                break;
+            }
+        }
+        if (!found) {  // we crop from upper-left and ignore ratio
+            printf("cannot get random i,j,w,h\n");
+            i = j = 0;
+            h = nround(height / 2);
+            w = nround(width / 2);
+        }
+        auto header = &e->second;
+        return static_cast<JPEG_HEADER *>(onlineROI(header, i, j, w, h));
+    }
+    return nullptr;
+}
+
+string JCache::getRAWData(const string &filename) {
+    auto e = map_raw_.find(filename);
+    if (e != map_raw_.end()) {
+        return e->second;
+    }
+    return "";
+}
+
 JPEGCacheHandler::JPEGCacheHandler(){
 
 };
 
 void JPEGCacheHandler::setJCache(JCache *jc) { this->jcache = jc; }
-
+int32_t JPEGCacheHandler::set_parameters(const int32_t seed, const double s1, const double s2, const double r1,
+                                         const double r2) {
+    jcache->set_parameters(seed, s1, s2, r1, r2);
+    return 0;
+}
 void JPEGCacheHandler::get(std::string &_return, const std::string &filename) {
     _return.resize(0);
     auto header = std::unique_ptr<JPEG_HEADER>(jcache->getHeader(filename));
@@ -173,6 +245,19 @@ void JPEGCacheHandler::getWithROI(std::string &_return, const std::string &filen
         spdlog::info("serialized_str len: {}", _return.size());
     }
 }
+
+void JPEGCacheHandler::getWithRandomCrop(std::string &_return, const std::string &filename) {
+    _return.resize(0);
+    auto header = std::unique_ptr<JPEG_HEADER>(jcache->getHeaderRandomCrop(filename));
+    if (header) {
+        std::stringstream ss(std::ios::out | std::ios::binary);
+        cereal::BinaryOutputArchive archive(ss);
+        archive(*header);
+        _return = ss.str();
+        spdlog::info("serialized_str len: {}", _return.size());
+    }
+}
+
 void JPEGCacheHandler::getRAW(std::string &_return, const std::string &filename) {
     _return = jcache->getRAWData(filename);
 }
@@ -191,6 +276,11 @@ JPEGCacheClient::JPEGCacheClient(const string &host, int port) {
 };
 JPEGCacheClient::~JPEGCacheClient() { transport->close(); };
 
+int32_t JPEGCacheClient::set_parameters(const int32_t seed, const double s1, const double s2, const double r1,
+                                        const double r2) {
+    return client->set_parameters(seed, s1, s2, r1, r2);
+}
+
 JPEG_HEADER *JPEGCacheClient::get(const std::string &filename) {
     string header_str;
     client->get(header_str, filename);
@@ -206,7 +296,6 @@ JPEG_HEADER *JPEGCacheClient::get(const std::string &filename) {
 }
 JPEG_HEADER *JPEGCacheClient::getWithROI(const std::string &filename, int32_t offset_x, int32_t offset_y, int32_t roi_w,
                                          int32_t roi_h) {
-
     string header_str;
     client->getWithROI(header_str, filename, offset_x, offset_y, roi_w, roi_h);
     assert(header_str.size() > 0);
@@ -218,6 +307,20 @@ JPEG_HEADER *JPEGCacheClient::getWithROI(const std::string &filename, int32_t of
     iarchive(*header);
     return header;
 }
+
+JPEG_HEADER *JPEGCacheClient::getWithRandomCrop(const std::string &filename) {
+    string header_str;
+    client->getWithRandomCrop(header_str, filename);
+    assert(header_str.size() > 0);
+    printf("serialize size: %f\n", header_str.size() / 1024.0);
+
+    std::stringstream iss(header_str, std::ios::in | std::ios::binary);
+    cereal::BinaryInputArchive iarchive(iss);
+    JPEG_HEADER *header = static_cast<JPEG_HEADER *>(create_jpeg_header());
+    iarchive(*header);
+    return header;
+}
+
 int32_t JPEGCacheClient::put(const std::string &filename, const std::string &content) {
     return client->put(filename, content);
 }

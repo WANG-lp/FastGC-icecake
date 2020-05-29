@@ -27,6 +27,12 @@ string JPEGCacheClient::get_serialized_header_ROI(const std::string& filename, i
     assert(header_str.size() > 0);
     return header_str;
 }
+string JPEGCacheClient::get_serialized_header_random_crop(const std::string& filename) {
+    string header_str;
+    client->getWithRandomCrop(header_str, filename);
+    assert(header_str.size() > 0);
+    return header_str;
+}
 string JPEGCacheClient::get_serialized_raw_file(const std::string& filename) {
     string ret;
     client->getRAW(ret, filename);
@@ -55,6 +61,12 @@ PYBIND11_MODULE(pjcache, m) {
             },
             "get a parsed file from remote cache server with ROI", "filename"_a, "offset_x"_a, "offset_y"_a, "width"_a,
             "height"_a)
+        .def(
+            "get_serialized_header_random_crop",
+            [](jcache::JPEGCacheClient& jc, const string& filename) {
+                return py::bytes(jc.get_serialized_header_random_crop(filename));
+            },
+            "get a parsed file from remote cache server with random crop", "filename"_a)
         .def(
             "get_raw_file",
             [](jcache::JPEGCacheClient& jc, const string& filename) {

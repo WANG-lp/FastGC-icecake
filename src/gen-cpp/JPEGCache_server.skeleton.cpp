@@ -20,6 +20,11 @@ class JPEGCacheHandler : virtual public JPEGCacheIf {
     // Your initialization goes here
   }
 
+  int32_t set_parameters(const int32_t seed, const double s1, const double s2, const double r1, const double r2) {
+    // Your implementation goes here
+    printf("set_parameters\n");
+  }
+
   void get(std::string& _return, const std::string& filename) {
     // Your implementation goes here
     printf("get\n");
@@ -28,6 +33,11 @@ class JPEGCacheHandler : virtual public JPEGCacheIf {
   void getWithROI(std::string& _return, const std::string& filename, const int32_t offset_x, const int32_t offset_y, const int32_t roi_w, const int32_t roi_h) {
     // Your implementation goes here
     printf("getWithROI\n");
+  }
+
+  void getWithRandomCrop(std::string& _return, const std::string& filename) {
+    // Your implementation goes here
+    printf("getWithRandomCrop\n");
   }
 
   void getRAW(std::string& _return, const std::string& filename) {

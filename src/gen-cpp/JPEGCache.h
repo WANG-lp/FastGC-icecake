@@ -22,8 +22,10 @@ namespace JPEGCache {
 class JPEGCacheIf {
  public:
   virtual ~JPEGCacheIf() {}
+  virtual int32_t set_parameters(const int32_t seed, const double s1, const double s2, const double r1, const double r2) = 0;
   virtual void get(std::string& _return, const std::string& filename) = 0;
   virtual void getWithROI(std::string& _return, const std::string& filename, const int32_t offset_x, const int32_t offset_y, const int32_t roi_w, const int32_t roi_h) = 0;
+  virtual void getWithRandomCrop(std::string& _return, const std::string& filename) = 0;
   virtual void getRAW(std::string& _return, const std::string& filename) = 0;
   virtual int32_t put(const std::string& filename, const std::string& content) = 0;
 };
@@ -55,10 +57,17 @@ class JPEGCacheIfSingletonFactory : virtual public JPEGCacheIfFactory {
 class JPEGCacheNull : virtual public JPEGCacheIf {
  public:
   virtual ~JPEGCacheNull() {}
+  int32_t set_parameters(const int32_t /* seed */, const double /* s1 */, const double /* s2 */, const double /* r1 */, const double /* r2 */) {
+    int32_t _return = 0;
+    return _return;
+  }
   void get(std::string& /* _return */, const std::string& /* filename */) {
     return;
   }
   void getWithROI(std::string& /* _return */, const std::string& /* filename */, const int32_t /* offset_x */, const int32_t /* offset_y */, const int32_t /* roi_w */, const int32_t /* roi_h */) {
+    return;
+  }
+  void getWithRandomCrop(std::string& /* _return */, const std::string& /* filename */) {
     return;
   }
   void getRAW(std::string& /* _return */, const std::string& /* filename */) {
@@ -68,6 +77,138 @@ class JPEGCacheNull : virtual public JPEGCacheIf {
     int32_t _return = 0;
     return _return;
   }
+};
+
+typedef struct _JPEGCache_set_parameters_args__isset {
+  _JPEGCache_set_parameters_args__isset() : seed(false), s1(false), s2(false), r1(false), r2(false) {}
+  bool seed :1;
+  bool s1 :1;
+  bool s2 :1;
+  bool r1 :1;
+  bool r2 :1;
+} _JPEGCache_set_parameters_args__isset;
+
+class JPEGCache_set_parameters_args {
+ public:
+
+  JPEGCache_set_parameters_args(const JPEGCache_set_parameters_args&);
+  JPEGCache_set_parameters_args& operator=(const JPEGCache_set_parameters_args&);
+  JPEGCache_set_parameters_args() : seed(0), s1(0), s2(0), r1(0), r2(0) {
+  }
+
+  virtual ~JPEGCache_set_parameters_args() noexcept;
+  int32_t seed;
+  double s1;
+  double s2;
+  double r1;
+  double r2;
+
+  _JPEGCache_set_parameters_args__isset __isset;
+
+  void __set_seed(const int32_t val);
+
+  void __set_s1(const double val);
+
+  void __set_s2(const double val);
+
+  void __set_r1(const double val);
+
+  void __set_r2(const double val);
+
+  bool operator == (const JPEGCache_set_parameters_args & rhs) const
+  {
+    if (!(seed == rhs.seed))
+      return false;
+    if (!(s1 == rhs.s1))
+      return false;
+    if (!(s2 == rhs.s2))
+      return false;
+    if (!(r1 == rhs.r1))
+      return false;
+    if (!(r2 == rhs.r2))
+      return false;
+    return true;
+  }
+  bool operator != (const JPEGCache_set_parameters_args &rhs) const {
+    return !(*this == rhs);
+  }
+
+  bool operator < (const JPEGCache_set_parameters_args & ) const;
+
+  uint32_t read(::apache::thrift::protocol::TProtocol* iprot);
+  uint32_t write(::apache::thrift::protocol::TProtocol* oprot) const;
+
+};
+
+
+class JPEGCache_set_parameters_pargs {
+ public:
+
+
+  virtual ~JPEGCache_set_parameters_pargs() noexcept;
+  const int32_t* seed;
+  const double* s1;
+  const double* s2;
+  const double* r1;
+  const double* r2;
+
+  uint32_t write(::apache::thrift::protocol::TProtocol* oprot) const;
+
+};
+
+typedef struct _JPEGCache_set_parameters_result__isset {
+  _JPEGCache_set_parameters_result__isset() : success(false) {}
+  bool success :1;
+} _JPEGCache_set_parameters_result__isset;
+
+class JPEGCache_set_parameters_result {
+ public:
+
+  JPEGCache_set_parameters_result(const JPEGCache_set_parameters_result&);
+  JPEGCache_set_parameters_result& operator=(const JPEGCache_set_parameters_result&);
+  JPEGCache_set_parameters_result() : success(0) {
+  }
+
+  virtual ~JPEGCache_set_parameters_result() noexcept;
+  int32_t success;
+
+  _JPEGCache_set_parameters_result__isset __isset;
+
+  void __set_success(const int32_t val);
+
+  bool operator == (const JPEGCache_set_parameters_result & rhs) const
+  {
+    if (!(success == rhs.success))
+      return false;
+    return true;
+  }
+  bool operator != (const JPEGCache_set_parameters_result &rhs) const {
+    return !(*this == rhs);
+  }
+
+  bool operator < (const JPEGCache_set_parameters_result & ) const;
+
+  uint32_t read(::apache::thrift::protocol::TProtocol* iprot);
+  uint32_t write(::apache::thrift::protocol::TProtocol* oprot) const;
+
+};
+
+typedef struct _JPEGCache_set_parameters_presult__isset {
+  _JPEGCache_set_parameters_presult__isset() : success(false) {}
+  bool success :1;
+} _JPEGCache_set_parameters_presult__isset;
+
+class JPEGCache_set_parameters_presult {
+ public:
+
+
+  virtual ~JPEGCache_set_parameters_presult() noexcept;
+  int32_t* success;
+
+  _JPEGCache_set_parameters_presult__isset __isset;
+
+  uint32_t read(::apache::thrift::protocol::TProtocol* iprot);
+
 };
 
 typedef struct _JPEGCache_get_args__isset {
@@ -301,6 +442,110 @@ class JPEGCache_getWithROI_presult {
   std::string* success;
 
   _JPEGCache_getWithROI_presult__isset __isset;
+
+  uint32_t read(::apache::thrift::protocol::TProtocol* iprot);
+
+};
+
+typedef struct _JPEGCache_getWithRandomCrop_args__isset {
+  _JPEGCache_getWithRandomCrop_args__isset() : filename(false) {}
+  bool filename :1;
+} _JPEGCache_getWithRandomCrop_args__isset;
+
+class JPEGCache_getWithRandomCrop_args {
+ public:
+
+  JPEGCache_getWithRandomCrop_args(const JPEGCache_getWithRandomCrop_args&);
+  JPEGCache_getWithRandomCrop_args& operator=(const JPEGCache_getWithRandomCrop_args&);
+  JPEGCache_getWithRandomCrop_args() : filename() {
+  }
+
+  virtual ~JPEGCache_getWithRandomCrop_args() noexcept;
+  std::string filename;
+
+  _JPEGCache_getWithRandomCrop_args__isset __isset;
+
+  void __set_filename(const std::string& val);
+
+  bool operator == (const JPEGCache_getWithRandomCrop_args & rhs) const
+  {
+    if (!(filename == rhs.filename))
+      return false;
+    return true;
+  }
+  bool operator != (const JPEGCache_getWithRandomCrop_args &rhs) const {
+    return !(*this == rhs);
+  }
+
+  bool operator < (const JPEGCache_getWithRandomCrop_args & ) const;
+
+  uint32_t read(::apache::thrift::protocol::TProtocol* iprot);
+  uint32_t write(::apache::thrift::protocol::TProtocol* oprot) const;
+
+};
+
+
+class JPEGCache_getWithRandomCrop_pargs {
+ public:
+
+
+  virtual ~JPEGCache_getWithRandomCrop_pargs() noexcept;
+  const std::string* filename;
+
+  uint32_t write(::apache::thrift::protocol::TProtocol* oprot) const;
+
+};
+
+typedef struct _JPEGCache_getWithRandomCrop_result__isset {
+  _JPEGCache_getWithRandomCrop_result__isset() : success(false) {}
+  bool success :1;
+} _JPEGCache_getWithRandomCrop_result__isset;
+
+class JPEGCache_getWithRandomCrop_result {
+ public:
+
+  JPEGCache_getWithRandomCrop_result(const JPEGCache_getWithRandomCrop_result&);
+  JPEGCache_getWithRandomCrop_result& operator=(const JPEGCache_getWithRandomCrop_result&);
+  JPEGCache_getWithRandomCrop_result() : success() {
+  }
+
+  virtual ~JPEGCache_getWithRandomCrop_result() noexcept;
+  std::string success;
+
+  _JPEGCache_getWithRandomCrop_result__isset __isset;
+
+  void __set_success(const std::string& val);
+
+  bool operator == (const JPEGCache_getWithRandomCrop_result & rhs) const
+  {
+    if (!(success == rhs.success))
+      return false;
+    return true;
+  }
+  bool operator != (const JPEGCache_getWithRandomCrop_result &rhs) const {
+    return !(*this == rhs);
+  }
+
+  bool operator < (const JPEGCache_getWithRandomCrop_result & ) const;
+
+  uint32_t read(::apache::thrift::protocol::TProtocol* iprot);
+  uint32_t write(::apache::thrift::protocol::TProtocol* oprot) const;
+
+};
+
+typedef struct _JPEGCache_getWithRandomCrop_presult__isset {
+  _JPEGCache_getWithRandomCrop_presult__isset() : success(false) {}
+  bool success :1;
+} _JPEGCache_getWithRandomCrop_presult__isset;
+
+class JPEGCache_getWithRandomCrop_presult {
+ public:
+
+
+  virtual ~JPEGCache_getWithRandomCrop_presult() noexcept;
+  std::string* success;
+
+  _JPEGCache_getWithRandomCrop_presult__isset __isset;
 
   uint32_t read(::apache::thrift::protocol::TProtocol* iprot);
 
@@ -546,12 +791,18 @@ class JPEGCacheClient : virtual public JPEGCacheIf {
   std::shared_ptr< ::apache::thrift::protocol::TProtocol> getOutputProtocol() {
     return poprot_;
   }
+  int32_t set_parameters(const int32_t seed, const double s1, const double s2, const double r1, const double r2);
+  void send_set_parameters(const int32_t seed, const double s1, const double s2, const double r1, const double r2);
+  int32_t recv_set_parameters();
   void get(std::string& _return, const std::string& filename);
   void send_get(const std::string& filename);
   void recv_get(std::string& _return);
   void getWithROI(std::string& _return, const std::string& filename, const int32_t offset_x, const int32_t offset_y, const int32_t roi_w, const int32_t roi_h);
   void send_getWithROI(const std::string& filename, const int32_t offset_x, const int32_t offset_y, const int32_t roi_w, const int32_t roi_h);
   void recv_getWithROI(std::string& _return);
+  void getWithRandomCrop(std::string& _return, const std::string& filename);
+  void send_getWithRandomCrop(const std::string& filename);
+  void recv_getWithRandomCrop(std::string& _return);
   void getRAW(std::string& _return, const std::string& filename);
   void send_getRAW(const std::string& filename);
   void recv_getRAW(std::string& _return);
@@ -573,15 +824,19 @@ class JPEGCacheProcessor : public ::apache::thrift::TDispatchProcessor {
   typedef  void (JPEGCacheProcessor::*ProcessFunction)(int32_t, ::apache::thrift::protocol::TProtocol*, ::apache::thrift::protocol::TProtocol*, void*);
   typedef std::map<std::string, ProcessFunction> ProcessMap;
   ProcessMap processMap_;
+  void process_set_parameters(int32_t seqid, ::apache::thrift::protocol::TProtocol* iprot, ::apache::thrift::protocol::TProtocol* oprot, void* callContext);
   void process_get(int32_t seqid, ::apache::thrift::protocol::TProtocol* iprot, ::apache::thrift::protocol::TProtocol* oprot, void* callContext);
   void process_getWithROI(int32_t seqid, ::apache::thrift::protocol::TProtocol* iprot, ::apache::thrift::protocol::TProtocol* oprot, void* callContext);
+  void process_getWithRandomCrop(int32_t seqid, ::apache::thrift::protocol::TProtocol* iprot, ::apache::thrift::protocol::TProtocol* oprot, void* callContext);
   void process_getRAW(int32_t seqid, ::apache::thrift::protocol::TProtocol* iprot, ::apache::thrift::protocol::TProtocol* oprot, void* callContext);
   void process_put(int32_t seqid, ::apache::thrift::protocol::TProtocol* iprot, ::apache::thrift::protocol::TProtocol* oprot, void* callContext);
  public:
   JPEGCacheProcessor(::std::shared_ptr<JPEGCacheIf> iface) :
     iface_(iface) {
+    processMap_["set_parameters"] = &JPEGCacheProcessor::process_set_parameters;
     processMap_["get"] = &JPEGCacheProcessor::process_get;
     processMap_["getWithROI"] = &JPEGCacheProcessor::process_getWithROI;
+    processMap_["getWithRandomCrop"] = &JPEGCacheProcessor::process_getWithRandomCrop;
     processMap_["getRAW"] = &JPEGCacheProcessor::process_getRAW;
     processMap_["put"] = &JPEGCacheProcessor::process_put;
   }
@@ -612,6 +867,15 @@ class JPEGCacheMultiface : virtual public JPEGCacheIf {
     ifaces_.push_back(iface);
   }
  public:
+  int32_t set_parameters(const int32_t seed, const double s1, const double s2, const double r1, const double r2) {
+    size_t sz = ifaces_.size();
+    size_t i = 0;
+    for (; i < (sz - 1); ++i) {
+      ifaces_[i]->set_parameters(seed, s1, s2, r1, r2);
+    }
+    return ifaces_[i]->set_parameters(seed, s1, s2, r1, r2);
+  }
+
   void get(std::string& _return, const std::string& filename) {
     size_t sz = ifaces_.size();
     size_t i = 0;
@@ -629,6 +893,16 @@ class JPEGCacheMultiface : virtual public JPEGCacheIf {
       ifaces_[i]->getWithROI(_return, filename, offset_x, offset_y, roi_w, roi_h);
     }
     ifaces_[i]->getWithROI(_return, filename, offset_x, offset_y, roi_w, roi_h);
+    return;
+  }
+
+  void getWithRandomCrop(std::string& _return, const std::string& filename) {
+    size_t sz = ifaces_.size();
+    size_t i = 0;
+    for (; i < (sz - 1); ++i) {
+      ifaces_[i]->getWithRandomCrop(_return, filename);
+    }
+    ifaces_[i]->getWithRandomCrop(_return, filename);
     return;
   }
 
@@ -683,12 +957,18 @@ class JPEGCacheConcurrentClient : virtual public JPEGCacheIf {
   std::shared_ptr< ::apache::thrift::protocol::TProtocol> getOutputProtocol() {
     return poprot_;
   }
+  int32_t set_parameters(const int32_t seed, const double s1, const double s2, const double r1, const double r2);
+  int32_t send_set_parameters(const int32_t seed, const double s1, const double s2, const double r1, const double r2);
+  int32_t recv_set_parameters(const int32_t seqid);
   void get(std::string& _return, const std::string& filename);
   int32_t send_get(const std::string& filename);
   void recv_get(std::string& _return, const int32_t seqid);
   void getWithROI(std::string& _return, const std::string& filename, const int32_t offset_x, const int32_t offset_y, const int32_t roi_w, const int32_t roi_h);
   int32_t send_getWithROI(const std::string& filename, const int32_t offset_x, const int32_t offset_y, const int32_t roi_w, const int32_t roi_h);
   void recv_getWithROI(std::string& _return, const int32_t seqid);
+  void getWithRandomCrop(std::string& _return, const std::string& filename);
+  int32_t send_getWithRandomCrop(const std::string& filename);
+  void recv_getWithRandomCrop(std::string& _return, const int32_t seqid);
   void getRAW(std::string& _return, const std::string& filename);
   int32_t send_getRAW(const std::string& filename);
   void recv_getRAW(std::string& _return, const int32_t seqid);

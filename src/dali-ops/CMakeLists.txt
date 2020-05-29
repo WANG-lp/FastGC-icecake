@@ -20,4 +20,4 @@
         )
 
     cuda_add_library(dali_icecake SHARED ${DALI_PLUGIN_SRC})
-    target_link_libraries(dali_icecake dali icecake_c OpenMP::OpenMP_CXX)
+    target_link_libraries(dali_icecake dali OpenMP::OpenMP_CXX)
