@@ -99,8 +99,7 @@ bool JCache::putJPEG(const uint8_t *image_raw, size_t len, const string &filenam
     if (header.status != 1) {
         return false;
     }
-    map_[filename] = header;
-    map_raw_[filename] = string(image_raw, image_raw + len);
+    map_[filename] = {header, string(image_raw, image_raw + len)};
     return true;
 }
 bool JCache::putJPEG(const vector<uint8_t> &image, const string &filename) {
@@ -110,8 +109,7 @@ bool JCache::putJPEG(const vector<uint8_t> &image, const string &filename) {
     if (header.status != 1) {
         return false;
     }
-    map_[filename] = header;
-    map_raw_[filename] = string(image.begin(), image.end());
+    map_[filename] = {header, string(image.begin(), image.end())};
     return true;
 }
 bool JCache::putJPEG(const string &filename) {
@@ -121,9 +119,8 @@ bool JCache::putJPEG(const string &filename) {
     if (header.status != 1) {
         return false;
     }
-    map_[filename] = header;
     auto img_data = dec.get_image_data();
-    map_raw_[filename] = string(img_data.begin(), img_data.end());
+    map_[filename] = {header, string(img_data.begin(), img_data.end())};
     return true;
 }
 
@@ -131,16 +128,17 @@ JPEG_HEADER *JCache::getHeader(const string &filename) {
     auto e = map_.find(filename);
     if (e != map_.end()) {
         JPEG_HEADER *ret = static_cast<JPEG_HEADER *>(create_jpeg_header());
-        ret->blockpos_compact = e->second.blockpos_compact;
-        ret->blocks_num = e->second.blocks_num;
-        ret->dht = e->second.dht;
-        ret->dqt_table = e->second.dqt_table;
-        ret->height = e->second.height;
-        ret->sof0 = e->second.sof0;
-        ret->sos_first_part = e->second.sos_first_part;
-        ret->sos_second_part = e->second.sos_second_part;
-        ret->status = e->second.status;
-        ret->width = e->second.width;
+        auto &header = e->second.first;
+        ret->blockpos_compact = header.blockpos_compact;
+        ret->blocks_num = header.blocks_num;
+        ret->dht = header.dht;
+        ret->dqt_table = header.dqt_table;
+        ret->height = header.height;
+        ret->sof0 = header.sof0;
+        ret->sos_first_part = header.sos_first_part;
+        ret->sos_second_part = header.sos_second_part;
+        ret->status = header.status;
+        ret->width = header.width;
         return ret;
     }
     return nullptr;
@@ -151,8 +149,8 @@ JPEG_HEADER *JCache::getHeaderwithCrop(const string &filename, int offset_x, int
     if (e == map_.end()) {
         return nullptr;
     }
-    auto header = &e->second;
-    return static_cast<JPEG_HEADER *>(onlineROI(header, offset_x, offset_y, roi_width, roi_height));
+    auto &header = e->second.first;
+    return static_cast<JPEG_HEADER *>(onlineROI(&header, offset_x, offset_y, roi_width, roi_height));
 }
 
 JPEG_HEADER *JCache::getHeaderRandomCrop(const string &filename) {
@@ -161,8 +159,9 @@ JPEG_HEADER *JCache::getHeaderRandomCrop(const string &filename) {
 
     auto e = map_.find(filename);
     if (e != map_.end()) {
-        int width = e->second.width;
-        int height = e->second.height;
+        auto &header = e->second.first;
+        int width = header.width;
+        int height = header.height;
         size_t area = width * height;
 
         bool found = false;
@@ -197,16 +196,15 @@ JPEG_HEADER *JCache::getHeaderRandomCrop(const string &filename) {
             h = nround(height / 2);
             w = nround(width / 2);
         }
-        auto header = &e->second;
-        return static_cast<JPEG_HEADER *>(onlineROI(header, i, j, w, h));
+        return static_cast<JPEG_HEADER *>(onlineROI(&header, i, j, w, h));
     }
     return nullptr;
 }
 
 string JCache::getRAWData(const string &filename) {
-    auto e = map_raw_.find(filename);
-    if (e != map_raw_.end()) {
-        return e->second;
+    auto e = map_.find(filename);
+    if (e != map_.end()) {
+        return e->second.second;
     }
     return "";
 }

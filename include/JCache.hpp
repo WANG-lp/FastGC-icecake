@@ -45,8 +45,7 @@ class JCache {
    private:
     void server_func();
 
-    std::unordered_map<string, JPEG_HEADER> map_;  // parsed file
-    std::unordered_map<string, string> map_raw_;   // raw file
+    std::unordered_map<string, std::pair<JPEG_HEADER, string>> map_;  // parsed file
 
     float scale1, scale2;
     float ratio1, ratio2;
