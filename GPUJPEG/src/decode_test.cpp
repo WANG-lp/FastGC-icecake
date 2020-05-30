@@ -159,7 +159,9 @@ int RPC_test(const string& fname, uint8_t* image, size_t len) {
     printf("put image ok\n");
     // auto header = jcacheclient.get("image1.jpeg");
     // auto header_ptr = jcacheclient.getWithROI("image1.jpeg", 0, 0, 360, 360);
-    auto header_ptr = jcacheclient.getWithRandomCrop("image1.jpeg");
+    auto header_str = jcacheclient.get_serialized_header_ROI("image1.jpeg", 0, 0, 224, 224);
+    auto header_ptr = jcache::deserialization_header(header_str);
+    // auto header_ptr = jcacheclient.getWithRandomCrop("image1.jpeg");
 
     restore_block_offset_from_compact(header_ptr);
     auto fsize = get_filesize(fname.c_str());

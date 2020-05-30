@@ -20,6 +20,15 @@ void serialize(Archive &archive, JPEG_HEADER &m) {
 
 namespace jcache {
 
+JPEG_HEADER *deserialization_header(const string &str) {
+    std::stringstream iss(str, std::ios::in | std::ios::binary);
+    cereal::BinaryInputArchive iarchive(iss);
+    JPEG_HEADER *header = static_cast<JPEG_HEADER *>(create_jpeg_header());
+    iarchive(*header);
+    printf("deserialization ok. height: %d, width: %d\n", header->height, header->width);
+    return header;
+}
+
 inline uint16_t big_endian_bytes2_uint(const void *data) {
     auto bytes = (uint8_t *) data;
     uint16_t res;
@@ -317,6 +326,32 @@ JPEG_HEADER *JPEGCacheClient::getWithRandomCrop(const std::string &filename) {
     JPEG_HEADER *header = static_cast<JPEG_HEADER *>(create_jpeg_header());
     iarchive(*header);
     return header;
+}
+
+string JPEGCacheClient::get_serialized_header(const std::string &filename) {
+    string header_str;
+    client->get(header_str, filename);
+    assert(header_str.size() > 0);
+    return header_str;
+}
+string JPEGCacheClient::get_serialized_header_ROI(const std::string &filename, int32_t offset_x, int32_t offset_y,
+                                                  int32_t roi_w, int32_t roi_h) {
+    string header_str;
+    client->getWithROI(header_str, filename, offset_x, offset_y, roi_w, roi_h);
+    assert(header_str.size() > 0);
+    return header_str;
+}
+string JPEGCacheClient::get_serialized_header_random_crop(const std::string &filename) {
+    string header_str;
+    client->getWithRandomCrop(header_str, filename);
+    assert(header_str.size() > 0);
+    return header_str;
+}
+string JPEGCacheClient::get_serialized_raw_file(const std::string &filename) {
+    string ret;
+    client->getRAW(ret, filename);
+    assert(ret.size() > 0);
+    return ret;
 }
 
 int32_t JPEGCacheClient::put(const std::string &filename, const std::string &content) {

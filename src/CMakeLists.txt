@@ -37,11 +37,6 @@ set(CUDA_SRC
 #pybind11_add_module(pyicecake SHARED icecake-python.cpp ${CPP_SRC})
 #target_link_libraries(pyicecake PRIVATE Threads::Threads ${CUDA_LIBRARIES} OpenMP::OpenMP_CXX ${OpenCV_LIBS})
 
-
-if (BUILD_DALI_PLUGIN)
-    add_subdirectory(dali-ops)
-endif()
-
 set(DECODER_CPP_SRC
         jpeg_decoder.cpp jpeg_decoder_export.cpp JCache.cpp
         ../include/JCache.hpp
@@ -52,7 +47,7 @@ set(DECODER_CPP_SRC
 
 add_library(jpegdec ${DECODER_CPP_SRC})
 target_link_libraries(jpegdec PRIVATE Threads::Threads ${THRIFT_LIBRARIES} ${CUDA_LIBRARIES} OpenMP::OpenMP_CXX)
-set_property(TARGET jpegdec PROPERTY POSITION_INDEPENDENT_CODE ON)
+set_target_properties(jpegdec PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
 add_executable(jcache_server main.cpp)
 target_link_libraries(jcache_server PRIVATE Threads::Threads OpenMP::OpenMP_CXX jpegdec)
@@ -64,8 +59,9 @@ include_directories(${CMAKE_SOURCE_DIR}/GPUJPEG)
 file(GLOB H_FILES ${CMAKE_SOURCE_DIR}/GPUJPEG/libgpujpeg/*.h)
 file(GLOB C_FILES ${CMAKE_SOURCE_DIR}/GPUJPEG/src/*.c ${CMAKE_SOURCE_DIR}/GPUJPEG/src/*/*.cpp ${CMAKE_SOURCE_DIR}/GPUJPEG/src/*.cu)
 
-cuda_add_library(gpujpeg ${H_FILES} ${C_FILES})
+cuda_add_library(gpujpeg SHARED ${H_FILES} ${C_FILES})
 set_target_properties(gpujpeg PROPERTIES SOVERSION 0)
+set_target_properties(gpujpeg PROPERTIES POSITION_INDEPENDENT_CODE ON)
 SET_TARGET_PROPERTIES(
   gpujpeg
 PROPERTIES
@@ -84,3 +80,8 @@ target_link_libraries(gpujpeg_test gpujpeg OpenMP::OpenMP_CXX jpegdec)
 pybind11_add_module(pjcache SHARED JCache-python.cpp)
 target_link_libraries(pjcache PRIVATE Threads::Threads ${CUDA_LIBRARIES} gpujpeg OpenMP::OpenMP_CXX jpegdec)
 
+
+
+if (BUILD_DALI_PLUGIN)
+    add_subdirectory(dali-ops)
+endif()

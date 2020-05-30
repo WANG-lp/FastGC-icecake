@@ -13,34 +13,6 @@ using std::vector;
 namespace py = pybind11;
 using namespace pybind11::literals;
 
-namespace jcache {
-string JPEGCacheClient::get_serialized_header(const std::string& filename) {
-    string header_str;
-    client->get(header_str, filename);
-    assert(header_str.size() > 0);
-    return header_str;
-}
-string JPEGCacheClient::get_serialized_header_ROI(const std::string& filename, int32_t offset_x, int32_t offset_y,
-                                                  int32_t roi_w, int32_t roi_h) {
-    string header_str;
-    client->getWithROI(header_str, filename, offset_x, offset_y, roi_w, roi_h);
-    assert(header_str.size() > 0);
-    return header_str;
-}
-string JPEGCacheClient::get_serialized_header_random_crop(const std::string& filename) {
-    string header_str;
-    client->getWithRandomCrop(header_str, filename);
-    assert(header_str.size() > 0);
-    return header_str;
-}
-string JPEGCacheClient::get_serialized_raw_file(const std::string& filename) {
-    string ret;
-    client->getRAW(ret, filename);
-    assert(ret.size() > 0);
-    return ret;
-}
-}  // namespace jcache
-
 PYBIND11_MODULE(pjcache, m) {
     m.doc() = "pybind11 JCacheClient plugin";
     py::class_<jcache::JPEGCacheClient>(m, "JPEGCacheClient")

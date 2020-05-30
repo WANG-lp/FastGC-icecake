@@ -284,10 +284,12 @@ void *onlineROI(void *jpeg_header_raw, int offset_x, int offset_y, int roi_width
     // assert(ret->blocks_num == jpeg_header->blocks_num);
     // change width/height value in sof0
     ret->sof0 = jpeg_header->sof0;
-    bytes2_big_endian_uint(pixel_h_end - pixel_h_start, ret->sof0.data() + 3);
-    bytes2_big_endian_uint(pixel_w_end - pixel_w_start, ret->sof0.data() + 5);
-    int height = big_endian_bytes2_uint(ret->sof0.data() + 3);
-    int width = big_endian_bytes2_uint(ret->sof0.data() + 5);
+    ret->height = pixel_h_end - pixel_h_start;
+    ret->width = pixel_w_end - pixel_w_start;
+    bytes2_big_endian_uint(ret->height, ret->sof0.data() + 3);
+    bytes2_big_endian_uint(ret->width, ret->sof0.data() + 5);
+    // int height = big_endian_bytes2_uint(ret->sof0.data() + 3);
+    // int width = big_endian_bytes2_uint(ret->sof0.data() + 5);
     // printf("height: %d, width: %d\n", height, width);
     // for (int i = 0; i < total_blocks; i++) {
     //     int flag = 1;

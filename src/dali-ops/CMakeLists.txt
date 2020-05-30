@@ -16,8 +16,9 @@
 
     set(DALI_PLUGIN_SRC
         dali_icecake.cpp 
-        dali_icecake_gpu.cpp
+        dali_icecake.h
         )
 
     cuda_add_library(dali_icecake SHARED ${DALI_PLUGIN_SRC})
-    target_link_libraries(dali_icecake dali OpenMP::OpenMP_CXX)
+    target_link_libraries(dali_icecake dali OpenMP::OpenMP_CXX jpegdec gpujpeg)
+    set_target_properties(dali_icecake PROPERTIES POSITION_INDEPENDENT_CODE ON)
