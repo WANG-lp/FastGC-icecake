@@ -765,12 +765,12 @@ int gpujpeg_huffman_gpu_decoder_decode(struct gpujpeg_decoder* decoder) {
             coder->d_component, coder->d_segment, comp_count, decoder->segment_count, coder->d_data_compressed,
             coder->d_block_list, coder->d_data_quantized);
     } else if (coder->block_offsets && decoder->segment_count == 1) {
-        assert(coder->block_count == coder->block_pos_num);
-        dim3 grid(gpujpeg_div_and_round_up(coder->block_count, THREADS_PER_TBLOCK));
+        // assert(coder->block_count == coder->block_pos_num);
+        dim3 grid(gpujpeg_div_and_round_up(coder->block_pos_num, THREADS_PER_TBLOCK));
         // printf("use block parallel\n");
         gpujpeg_huffman_decoder_decode_block_parallel_kernel<THREADS_PER_TBLOCK>
             <<<grid, thread, 0, *(decoder->stream)>>>(coder->d_block_offsets, coder->d_component, coder->d_segment,
-                                                      comp_count, coder->block_count, coder->d_data_compressed,
+                                                      comp_count, coder->block_pos_num, coder->d_data_compressed,
                                                       coder->d_block_list, coder->d_data_quantized);
 
     } else {

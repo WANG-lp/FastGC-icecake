@@ -9,6 +9,7 @@
 #include "../include/jpeg_decoder_export.h"
 #include "../libgpujpeg/gpujpeg.h"
 #include "../libgpujpeg/gpujpeg_common.h"
+#include "decoder_helper.h"
 #include "gpujpeg_common_internal.h"   // TIMER
 #include "gpujpeg_decoder_internal.h"  // TIMER
 #include "gpujpeg_util.h"
@@ -238,12 +239,19 @@ int main(int argc, char** argv) {
     gpujpeg_decoder* decoder1 = gpujpeg_decoder_create(0);
     gpujpeg_decoder* decoder2 = gpujpeg_decoder_create(0);
 
-    warmup(input, decoder1, image, image_size, nullptr, 1);
+    // init_decoder_with_image(decoder1, "/tmp/test_mouse_rst_1b.jpeg");
+
+    // warmup(input, decoder1, image, image_size, nullptr, 1);
     printf("\n");
     jc.putJPEG(input);
     void* jpeg_header_raw = jc.getHeader(input);
-    void* jpeg_header_croped = jc.getHeaderwithCrop(input, 0, 0, 224, 224);
+    void* jpeg_header_croped = jc.getHeaderwithCrop(input, 0, 0, 320, 320);
+    void* jpeg_header_croped2 = jc.getHeaderwithCrop(input, 0, 0, 240, 240);
     restore_block_offset_from_compact(jpeg_header_croped);
+    restore_block_offset_from_compact(jpeg_header_croped2);
+    warmup(input, decoder1, image, image_size, jpeg_header_croped, 1);
+    warmup(input, decoder1, image, image_size, jpeg_header_croped2, 1);
+    return 0;
     if (get_jpeg_header_status(jpeg_header_croped) == 1) {
         printf("has header\n");
         warmup(input, decoder2, image, image_size, jpeg_header_croped, 1000);

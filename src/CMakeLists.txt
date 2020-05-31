@@ -59,7 +59,7 @@ include_directories(${CMAKE_SOURCE_DIR}/GPUJPEG)
 file(GLOB H_FILES ${CMAKE_SOURCE_DIR}/GPUJPEG/libgpujpeg/*.h)
 file(GLOB C_FILES ${CMAKE_SOURCE_DIR}/GPUJPEG/src/*.c ${CMAKE_SOURCE_DIR}/GPUJPEG/src/*/*.cpp ${CMAKE_SOURCE_DIR}/GPUJPEG/src/*.cu)
 
-cuda_add_library(gpujpeg SHARED ${H_FILES} ${C_FILES} gpu_decoder.cpp ../include/gpu_decoder.hpp)
+cuda_add_library(gpujpeg SHARED ${H_FILES} ${C_FILES} gpu_decoder.cpp ../include/gpu_decoder.hpp ${CMAKE_SOURCE_DIR}/GPUJPEG/src/decoder_helper.cpp)
 set_target_properties(gpujpeg PROPERTIES SOVERSION 0)
 set_target_properties(gpujpeg PROPERTIES POSITION_INDEPENDENT_CODE ON)
 SET_TARGET_PROPERTIES(

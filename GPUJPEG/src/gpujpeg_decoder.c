@@ -87,7 +87,7 @@ struct gpujpeg_decoder* gpujpeg_decoder_create(cudaStream_t* stream) {
 
     // Get coder
     struct gpujpeg_coder* coder = &decoder->coder;
-
+    decoder->coder_inited = false;
     // Set parameters
     memset(decoder, 0, sizeof(struct gpujpeg_decoder));
     gpujpeg_set_default_parameters(&coder->param);
@@ -96,6 +96,10 @@ struct gpujpeg_decoder* gpujpeg_decoder_create(cudaStream_t* stream) {
     coder->param_image.width = 0;
     coder->param_image.height = 0;
     coder->param.restart_interval = 0;
+
+    decoder->max_height = -1;
+    decoder->max_width = -1;
+    decoder->max_comp = -1;
 
     int result = 1;
 
@@ -166,15 +170,29 @@ int gpujpeg_decoder_init(struct gpujpeg_decoder* decoder, struct gpujpeg_paramet
         return 0;
 
     // For now we can't reinitialize decoder, we can only do first initialization
-    if (coder->param_image.width != 0 || coder->param_image.height != 0 || coder->param_image.comp_count != 0) {
-        fprintf(stderr, "[GPUJPEG] [Error] Can't reinitialize decoder, implement if needed!\n");
-        return -1;
+    // if (coder->param_image.width != 0 || coder->param_image.height != 0 || coder->param_image.comp_count != 0) {
+    //     fprintf(stderr, "[GPUJPEG] [Error] Can't reinitialize decoder, implement if needed!\n");
+    //     return -1;
+    // }
+    printf("%d %d %d\n", param_image->height, param_image->width, param_image->comp_count);
+    printf("%d %d %d\n", coder->param_image.height, coder->param_image.width, coder->param_image.comp_count);
+
+    // if (param_image->height <= coder->param_image.height && param_image->width <= coder->param_image.width &&
+    //     param_image->comp_count <= coder->param_image.comp_count) {
+    //     coder->param_image.height = param_image->height;
+    //     coder->param_image.width = param_image->width;
+    //     coder->data_raw_size = gpujpeg_image_calculate_size(&coder->param_image);
+    //     return 0;
+    // }
+    // Initialize coder
+    if (!decoder->coder_inited) {
+        printf("init\n");
+        if (gpujpeg_coder_init(coder) != 0) {
+            return -1;
+        }
+        decoder->coder_inited = true;
     }
 
-    // Initialize coder
-    if (gpujpeg_coder_init(coder) != 0) {
-        return -1;
-    }
     if (0 == gpujpeg_coder_init_image(coder, param, param_image, decoder->stream)) {
         return -1;
     }
@@ -234,18 +252,20 @@ int gpujpeg_decoder_decode_phase2(struct gpujpeg_decoder* decoder, struct gpujpe
     int rc;
     if (decoder->reader->block_offsets) {
         if (decoder->coder.block_offsets == NULL ||
-            decoder->reader->block_count > decoder->coder.block_pos_num) {  // only allocate if we have more blocks
+            decoder->reader->block_count >
+                decoder->coder.block_offset_allocated) {  // only allocate if we have more blocks
             if (decoder->coder.block_offsets) {
                 cudaFreeHost(decoder->coder.block_offsets);
                 cudaFree(decoder->coder.d_block_offsets);
             }
-
             cudaMallocHost((void**) &decoder->coder.block_offsets,
                            sizeof(struct block_offset_s) * decoder->reader->block_count);
             cudaMalloc((void**) &decoder->coder.d_block_offsets,
                        sizeof(struct block_offset_s) * decoder->reader->block_count);
-            decoder->coder.block_pos_num = decoder->reader->block_count;
+            decoder->coder.block_offset_allocated = decoder->reader->block_count;
         }
+        decoder->coder.block_pos_num = decoder->reader->block_count;
+
         memcpy(decoder->coder.block_offsets, decoder->reader->block_offsets,
                sizeof(struct block_offset_s) * decoder->reader->block_count);
         // free(decoder->reader->block_offsets);

@@ -373,6 +373,7 @@ struct gpujpeg_coder {
     struct block_offset_s* block_offsets;  // pinned memory
     struct block_offset_s* d_block_offsets;
     size_t block_pos_num;  // block 数量
+    size_t block_offset_allocated;
 
     /// Preprocessor data (kernel function pointer)
     void* preprocessor;
