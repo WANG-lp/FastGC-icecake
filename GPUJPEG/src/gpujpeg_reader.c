@@ -49,27 +49,12 @@ struct gpujpeg_reader* gpujpeg_reader_create() {
     reader->segment_info_size = 0;
     reader->block_offsets = NULL;
     reader->block_count = 0;
-    reader->jpeg_header_raw = create_jpeg_header();
     return reader;
-}
-
-void gpujpeg_reader_set_jpeg_header(struct gpujpeg_reader* reader, void* jpeg_header) {
-    if (reader->jpeg_header_raw == jpeg_header) {
-        return;
-    }
-    if (reader->jpeg_header_raw != NULL) {
-        destory_jpeg_header(reader->jpeg_header_raw);
-    }
-    reader->jpeg_header_raw = jpeg_header;
-    assert(get_jpeg_header_status(jpeg_header) == 1);
 }
 
 /* Documented at declaration */
 int gpujpeg_reader_destroy(struct gpujpeg_reader* reader) {
     assert(reader != NULL);
-    if (reader->jpeg_header_raw) {
-        destory_jpeg_header(reader->jpeg_header_raw);
-    }
     free(reader);
     return 0;
 }
@@ -130,7 +115,7 @@ void gpujpeg_reader_com_content(struct gpujpeg_decoder* decoder, uint8_t** image
             decoder->reader->block_offsets = unpack_jpeg_comment_section(*image + 2, length - 4, &num_blocks);
             decoder->reader->block_count = num_blocks;
             // printf("unpack ok, num blocks: %ld, first offset: %ld, %d\n", decoder->reader->block_count,
-            //    decoder->reader->block_offsets[0].byte_offset, decoder->reader->block_offsets[0].bit_offset);
+            //        decoder->reader->block_offsets[0].byte_offset, decoder->reader->block_offsets[0].bit_offset);
         }
     }
 
@@ -323,10 +308,10 @@ int gpujpeg_reader_read_dqt(struct gpujpeg_decoder* decoder, uint8_t** image) {
     //     printf("%x ", (*image)[i]);
     // }
     // printf("\n");
-    if (get_jpeg_header_status(decoder->reader->jpeg_header_raw) == 0) {
-        // printf("set dqt table\n");
-        set_dqt_table(decoder->reader->jpeg_header_raw, length + 2, *image - 2);
-    }
+    // if (get_jpeg_header_status(decoder->reader->jpeg_header_raw) == 0) {
+    //     // printf("set dqt table\n");
+    //     set_dqt_table(decoder->reader->jpeg_header_raw, length + 2, *image - 2);
+    // }
 
     if ((length % 65) != 0) {
         fprintf(stderr, "[GPUJPEG] [Error] DQT marker length should be 65 but %d was presented!\n", length);
@@ -392,10 +377,10 @@ static int gpujpeg_reader_read_sof0(struct gpujpeg_decoder* decoder, struct gpuj
     //     printf("%x ", (*image)[i]);
     // }
     // printf("\n");
-    if (decoder && get_jpeg_header_status(decoder->reader->jpeg_header_raw) == 0) {
-        // printf("set sf0\n");
-        set_sof0(decoder->reader->jpeg_header_raw, length + 2, *image - 2);
-    }
+    // if (decoder && get_jpeg_header_status(decoder->reader->jpeg_header_raw) == 0) {
+    //     // printf("set sf0\n");
+    //     set_sof0(decoder->reader->jpeg_header_raw, length + 2, *image - 2);
+    // }
 
     int precision = (int) gpujpeg_reader_read_byte(*image);
     if (precision != 8) {
@@ -408,9 +393,9 @@ static int gpujpeg_reader_read_sof0(struct gpujpeg_decoder* decoder, struct gpuj
     param_image->comp_count = (int) gpujpeg_reader_read_byte(*image);
     length -= 6;
 
-    if (decoder && get_jpeg_header_status(decoder->reader->jpeg_header_raw) == 0) {
-        set_jpeg_size(decoder->reader->jpeg_header_raw, param_image->width, param_image->height);
-    }
+    // if (decoder && get_jpeg_header_status(decoder->reader->jpeg_header_raw) == 0) {
+    //     set_jpeg_size(decoder->reader->jpeg_header_raw, param_image->width, param_image->height);
+    // }
 
     for (int comp = 0; comp < param_image->comp_count; comp++) {
         int id = (int) gpujpeg_reader_read_byte(*image);
@@ -461,10 +446,10 @@ int gpujpeg_reader_read_dht(struct gpujpeg_decoder* decoder, uint8_t** image) {
     //     printf("%x ", (*image)[i]);
     // }
     // printf("\n");
-    if (get_jpeg_header_status(decoder->reader->jpeg_header_raw) == 0) {
-        // printf("set dht\n");
-        set_dht(decoder->reader->jpeg_header_raw, length + 2, *image - 2);
-    }
+    // if (get_jpeg_header_status(decoder->reader->jpeg_header_raw) == 0) {
+    //     // printf("set dht\n");
+    //     set_dht(decoder->reader->jpeg_header_raw, length + 2, *image - 2);
+    // }
 
     while (length > 0) {
         int index = gpujpeg_reader_read_byte(*image);
@@ -684,11 +669,11 @@ int gpujpeg_reader_read_scan_content_by_parsing(struct gpujpeg_decoder* decoder,
         fprintf(stderr, "[GPUJPEG] [Error] JPEG data unexpected ended while reading SOS marker!\n");
     }
 
-    if (get_jpeg_header_status(decoder->reader->jpeg_header_raw) == 0) {
-        // printf("set sos2 table\n");
+    // if (get_jpeg_header_status(decoder->reader->jpeg_header_raw) == 0) {
+    //     // printf("set sos2 table\n");
 
-        set_sos_2nd(decoder->reader->jpeg_header_raw, data_compressed_offset, decoder->coder.data_compressed);
-    }
+    //     set_sos_2nd(decoder->reader->jpeg_header_raw, data_compressed_offset, decoder->coder.data_compressed);
+    // }
     return result;
 }
 
@@ -858,10 +843,10 @@ int gpujpeg_reader_read_sos(struct gpujpeg_decoder* decoder, uint8_t** image, ui
         decoder->comp_table_huffman_map[component_index][GPUJPEG_HUFFMAN_AC] = table_ac;
     }
 
-    if (get_jpeg_header_status(decoder->reader->jpeg_header_raw) == 0) {
-        // printf("set sos1 table\n");
-        set_sos_1st(decoder->reader->jpeg_header_raw, count_byte + 2, image_off_start);
-    }
+    // if (get_jpeg_header_status(decoder->reader->jpeg_header_raw) == 0) {
+    //     // printf("set sos1 table\n");
+    //     set_sos_1st(decoder->reader->jpeg_header_raw, count_byte + 2, image_off_start);
+    // }
 
     // Collect the additional scan parameters Ss, Se, Ah/Al.
     int Ss = (int) gpujpeg_reader_read_byte(*image);
@@ -947,7 +932,7 @@ int gpujpeg_reader_read_image_with_header(struct gpujpeg_decoder* decoder, void*
     }
     // printf("comp_id: %d, %d, %d, %d\n", decoder->comp_id[0], decoder->comp_id[1], decoder->comp_id[2],
     //        decoder->comp_id[3]);
-
+    // printf("status %d\n", get_jpeg_header_status(jpeg_header));
     // set block_offsets
     int block_num;
     decoder->reader->block_offsets = get_block_offsets(jpeg_header, &block_num);
@@ -1250,14 +1235,14 @@ int gpujpeg_reader_read_image(struct gpujpeg_decoder* decoder, uint8_t* image, i
             // printf("block %d, byte_off: %ld, bit_off: %d\n", i, decoder->reader->block_offsets[i].byte_offset,
             //    decoder->reader->block_offsets[i].bit_offset);
         }
-        set_block_offsets(decoder->reader->jpeg_header_raw, decoder->reader->block_offsets,
-                          decoder->reader->block_count);
-        free(decoder->reader->block_offsets);  // free allocated block_offset in parse_com
+        // set_block_offsets(decoder->reader->jpeg_header_raw, decoder->reader->block_offsets,
+        //                   decoder->reader->block_count);
+        // free(decoder->reader->block_offsets);  // free allocated block_offset in parse_com
         // reset the block_offsets ptr inside jpeg_header_raw
-        int block_num;
-        decoder->reader->block_offsets = get_block_offsets(decoder->reader->jpeg_header_raw, &block_num);
-        decoder->reader->block_count = block_num;
-        set_jpeg_header_status(decoder->reader->jpeg_header_raw, 1);
+        // int block_num;
+        // decoder->reader->block_offsets = get_block_offsets(decoder->reader->jpeg_header_raw, &block_num);
+        // decoder->reader->block_count = block_num;
+        // set_jpeg_header_status(decoder->reader->jpeg_header_raw, 1);
     }
 
     return 0;

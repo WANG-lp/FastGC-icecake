@@ -18,6 +18,8 @@
 using std::string;
 using std::vector;
 
+jcache::JCache jc;
+
 int rc;
 void dumpImg(const uint8_t* data, size_t data_size, int width, int height) {
     vector<uint8_t> chanR, chanG, chanB;
@@ -46,8 +48,7 @@ void decode(vector<vector<uint8_t>> image_data, int num_thread, int max_iter, vo
         decoder_outputs[i].type = GPUJPEG_DECODER_OUTPUT_CUDA_BUFFER;
         gpujpeg_decoder_set_output_format(decoders[i], GPUJPEG_RGB, GPUJPEG_444_U8_P012);
 
-        rc = gpujpeg_decoder_decode_phase1(decoders[i], image_data[i].data(), image_data[i].size(), &decoder_outputs[i],
-                                           jpeg_header);
+        rc = gpujpeg_decoder_decode_phase1(decoders[i], image_data[i].data(), image_data[i].size(), jpeg_header);
         assert(rc == 0);
         // Decode image
         rc = gpujpeg_decoder_decode_phase2(decoders[i], &decoder_outputs[i]);
@@ -66,11 +67,10 @@ void decode(vector<vector<uint8_t>> image_data, int num_thread, int max_iter, vo
         for (int i = 0; i < image_data.size(); i++) {
             // void* jpeg_header = decoders[i % num_thread]->reader->jpeg_header_raw;
             if (jpeg_header && get_jpeg_header_status(jpeg_header) == 1) {
-                rc = gpujpeg_decoder_decode_phase1(decoders[i], image_data[i].data(), image_data[i].size(),
-                                                   &decoder_outputs[i], jpeg_header);
+                rc =
+                    gpujpeg_decoder_decode_phase1(decoders[i], image_data[i].data(), image_data[i].size(), jpeg_header);
             } else {
-                rc = gpujpeg_decoder_decode_phase1(decoders[i], image_data[i].data(), image_data[i].size(),
-                                                   &decoder_outputs[i], nullptr);
+                rc = gpujpeg_decoder_decode_phase1(decoders[i], image_data[i].data(), image_data[i].size(), nullptr);
             }
 
             assert(rc == 0);
@@ -115,7 +115,7 @@ int warmup(const char* input, gpujpeg_decoder* decoder, uint8_t* image, int imag
     for (int i = 0; i < max_iter; i++) {
         GPUJPEG_TIMER_START();
         // Decode image
-        if ((rc = gpujpeg_decoder_decode_phase1(decoder, image, image_size, &decoder_output, jpeg_header)) != 0) {
+        if ((rc = gpujpeg_decoder_decode_phase1(decoder, image, image_size, jpeg_header)) != 0) {
             fprintf(stderr, "Failed to decode image [%s]!\n", input);
             return -1;
         }
@@ -185,7 +185,7 @@ int RPC_test(const string& fname, uint8_t* image, size_t len) {
     struct gpujpeg_decoder_output decoder_output;
     gpujpeg_decoder_output_set_default(&decoder_output);
 
-    if ((rc = gpujpeg_decoder_decode_phase1(decoder1, nullptr, 0, &decoder_output, &header)) != 0) {
+    if ((rc = gpujpeg_decoder_decode_phase1(decoder1, nullptr, 0, &header)) != 0) {
         fprintf(stderr, "Failed to decode image !\n");
         return -1;
     }
@@ -233,16 +233,19 @@ int main(int argc, char** argv) {
         return -1;
     }
 
-    return RPC_test(input, image, image_size);
+    // return RPC_test(input, image, image_size);
 
     gpujpeg_decoder* decoder1 = gpujpeg_decoder_create(0);
     gpujpeg_decoder* decoder2 = gpujpeg_decoder_create(0);
 
     warmup(input, decoder1, image, image_size, nullptr, 1);
     printf("\n");
-    void* jpeg_header_raw = decoder1->reader->jpeg_header_raw;
-    void* jpeg_header_croped = onlineROI(jpeg_header_raw, 100, 100, 128, 128);
+    jc.putJPEG(input);
+    void* jpeg_header_raw = jc.getHeader(input);
+    void* jpeg_header_croped = jc.getHeaderwithCrop(input, 0, 0, 224, 224);
+    restore_block_offset_from_compact(jpeg_header_croped);
     if (get_jpeg_header_status(jpeg_header_croped) == 1) {
+        printf("has header\n");
         warmup(input, decoder2, image, image_size, jpeg_header_croped, 1000);
     } else {
         warmup(input, decoder2, image, image_size, nullptr, 1000);
@@ -261,11 +264,10 @@ int main(int argc, char** argv) {
         image_data.emplace_back(image, image + image_size);
     }
 
-    auto jpeg_header_crop = onlineROI(jpeg_header_raw, 0, 0, 224, 224);
     gpujpeg_decoder* decoder3 = gpujpeg_decoder_create(0);
-    warmup(input, decoder3, image, image_size, jpeg_header_crop, 1000);
+    warmup(input, decoder3, image, image_size, jpeg_header_croped, 1000);
 
-    decode(image_data, thread_num, max_iter, jpeg_header_crop);
+    decode(image_data, thread_num, max_iter, jpeg_header_croped);
 
     // Destroy image
     gpujpeg_image_destroy(image);

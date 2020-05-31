@@ -81,7 +81,6 @@ struct gpujpeg_reader {
 
     struct block_offset_s* block_offsets;
     size_t block_count;
-    void* jpeg_header_raw;
 };
 
 /**

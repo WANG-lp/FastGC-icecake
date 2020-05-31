@@ -188,8 +188,7 @@ int gpujpeg_decoder_init(struct gpujpeg_decoder* decoder, struct gpujpeg_paramet
     return 0;
 }
 
-int gpujpeg_decoder_decode_phase1(struct gpujpeg_decoder* decoder, uint8_t* image, int image_size,
-                                  struct gpujpeg_decoder_output* output, void* jpeg_header) {
+int gpujpeg_decoder_decode_phase1(struct gpujpeg_decoder* decoder, uint8_t* image, int image_size, void* jpeg_header) {
     // Get coder
     struct gpujpeg_coder* coder = &decoder->coder;
     int rc;
@@ -275,7 +274,7 @@ int gpujpeg_decoder_decode_phase2(struct gpujpeg_decoder* decoder, struct gpujpe
     }
 
     // Perform huffman decoding on CPU (when there are not enough segments to saturate GPU)
-    if (0 && coder->segment_count < 32 && decoder->reader->block_offsets == NULL) {
+    if (coder->segment_count < 32 && decoder->reader->block_offsets == NULL) {
         // printf("using CPU-huffman decoding!!!\n");
         memset(coder->data_quantized, 0, sizeof(int16_t) * coder->data_size);
         GPUJPEG_CUSTOM_TIMER_START(decoder->def);

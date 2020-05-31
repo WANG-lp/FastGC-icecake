@@ -161,7 +161,7 @@ GPUJPEG_API int gpujpeg_decoder_decode(struct gpujpeg_decoder* decoder, uint8_t*
                                        struct gpujpeg_decoder_output* output);
 
 GPUJPEG_API int gpujpeg_decoder_decode_phase1(struct gpujpeg_decoder* decoder, uint8_t* image, int image_size,
-                                              struct gpujpeg_decoder_output* output, void* jpeg_header);
+                                              void* jpeg_header);
 
 GPUJPEG_API int gpujpeg_decoder_decode_phase2(struct gpujpeg_decoder* decoder, struct gpujpeg_decoder_output* output);
 /**

@@ -95,7 +95,8 @@ void set_block_offsets(void *jpeg_header_raw, const struct block_offset_s *block
 struct block_offset_s *get_block_offsets(void *jpeg_header_raw, int *length) {
     JPEG_HEADER *jpeg_header = static_cast<JPEG_HEADER *>(jpeg_header_raw);
     assert(jpeg_header->status == 1 && jpeg_header->blocks_num > 0 &&
-           jpeg_header->blockpos.size() == jpeg_header->blocks_num);
+               jpeg_header->blockpos.size() == jpeg_header->blocks_num ||
+           "remember to restore_block_offset_from_compact!");
     *length = jpeg_header->blocks_num;
     return jpeg_header->blockpos.data();
 }

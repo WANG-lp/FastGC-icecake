@@ -25,7 +25,7 @@ JPEG_HEADER *deserialization_header(const string &str) {
     cereal::BinaryInputArchive iarchive(iss);
     JPEG_HEADER *header = static_cast<JPEG_HEADER *>(create_jpeg_header());
     iarchive(*header);
-    printf("deserialization ok. height: %d, width: %d\n", header->height, header->width);
+    // printf("deserialization ok. height: %d, width: %d\n", header->height, header->width);
     return header;
 }
 
@@ -236,7 +236,7 @@ void JPEGCacheHandler::get(std::string &_return, const std::string &filename) {
         cereal::BinaryOutputArchive archive(ss);
         archive(*header);
         _return = ss.str();
-        spdlog::info("serialized_str len: {}", _return.size());
+        // spdlog::info("serialized_str len: {}", _return.size());
     }
 }
 
@@ -249,7 +249,7 @@ void JPEGCacheHandler::getWithROI(std::string &_return, const std::string &filen
         cereal::BinaryOutputArchive archive(ss);
         archive(*header);
         _return = ss.str();
-        spdlog::info("serialized_str len: {}", _return.size());
+        // spdlog::info("serialized_str len: {}", _return.size());
     }
 }
 
@@ -261,7 +261,7 @@ void JPEGCacheHandler::getWithRandomCrop(std::string &_return, const std::string
         cereal::BinaryOutputArchive archive(ss);
         archive(*header);
         _return = ss.str();
-        spdlog::info("serialized_str len: {}", _return.size());
+        // spdlog::info("serialized_str len: {}", _return.size());
     }
 }
 
