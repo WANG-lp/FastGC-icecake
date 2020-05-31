@@ -1,11 +1,12 @@
 #pragma once
 
+#include <omp.h>
 #include <iostream>
 #include <string>
 #include <vector>
-#include "../../GPUJPEG/libgpujpeg/gpujpeg_common.h"
-#include "../../GPUJPEG/libgpujpeg/gpujpeg_decoder.h"
+
 #include "../../include/JCache.hpp"
+#include "../../include/gpu_decoder.hpp"
 #include "dali/pipeline/operator/operator.h"
 #include "dali/pipeline/util/copy_with_stride.h"
 
@@ -49,12 +50,10 @@ class DaliIcecake : public dali::Operator<dali::CPUBackend> {
 class DaliIcecakeMixed : public dali::Operator<dali::MixedBackend> {
    public:
     inline explicit DaliIcecakeMixed(const ::dali::OpSpec &spec) : ::dali::Operator<dali::MixedBackend>(spec) {
-        // gpujpeg_init_device(1, GPUJPEG_VERBOSE);
-        decoder = gpujpeg_decoder_create(nullptr);
-        gpujpeg_decoder_set_output_format(decoder, GPUJPEG_RGB, GPUJPEG_444_U8_P012);
+        decoder = std::shared_ptr<jpeg_dec::GPUDecoder>(new jpeg_dec::GPUDecoder(batch_size_));
     }
 
-    virtual inline ~DaliIcecakeMixed() { gpujpeg_decoder_destroy(decoder); }
+    virtual inline ~DaliIcecakeMixed() {}
 
     DaliIcecakeMixed(const DaliIcecakeMixed &) = delete;
     DaliIcecakeMixed &operator=(const DaliIcecakeMixed &) = delete;
@@ -75,49 +74,39 @@ class DaliIcecakeMixed : public dali::Operator<dali::MixedBackend> {
         // (for load balancing)
         std::vector<std::shared_ptr<JPEG_HEADER>> header_ptrs(batch_size_);
         std::vector<std::pair<size_t, size_t>> image_order(batch_size_);
+#pragma omp prallel for num_threads(num_threads_)
         for (int i = 0; i < batch_size_; i++) {
             const auto &info_tensor = ws.Input<CPUBackend>(0, i);
             auto data = static_cast<const char *>(info_tensor.raw_data());
             header_ptrs[i] =
                 std::shared_ptr<JPEG_HEADER>(jcache::deserialization_header(string(data, data + info_tensor.size())));
+            restore_block_offset_from_compact(header_ptrs[i].get());
             int c = 3;
             output_shape[i] = {header_ptrs[i]->height, header_ptrs[i]->width, c};
             image_order[i] = std::make_pair(volume(output_shape[i]), i);
+            decoder->do_decode_phase1(i, header_ptrs[i].get());
         }
-        std::sort(image_order.begin(), image_order.end(), std::greater<std::pair<size_t, size_t>>());
+        // std::sort(image_order.begin(), image_order.end(), std::greater<std::pair<size_t, size_t>>());
 
         auto &output = ws.Output<GPUBackend>(0);
         output.Resize(output_shape);
         output.SetLayout("HWC");
         TypeInfo type = TypeInfo::Create<uint8_t>();
         output.set_type(type);
-
-        for (auto &size_idx : image_order) {
+        // #pragma omp parallel for num_threads(num_threads_)
+        for (size_t idx = 0; idx < image_order.size(); idx++) {
+            auto &size_idx = image_order[idx];
             const int sample_idx = size_idx.second;
 
             const auto &info_tensor = ws.Input<CPUBackend>(0, sample_idx);
-            restore_block_offset_from_compact(header_ptrs[sample_idx].get());
 
             auto *output_data = output.mutable_tensor<uint8_t>(sample_idx);
-
-            struct gpujpeg_decoder_output decoder_output;
-            gpujpeg_decoder_output_set_default(&decoder_output);
-            decoder_output.type = GPUJPEG_DECODER_OUTPUT_CUSTOM_CUDA_BUFFER;
-            decoder_output.data = output_data;
-            int rc;
-
-            if ((rc = gpujpeg_decoder_decode_phase1(decoder, nullptr, 0, header_ptrs[sample_idx].get())) != 0) {
-                fprintf(stderr, "Failed to decode image !\n");
-            }
-
-            if ((rc = gpujpeg_decoder_decode_phase2(decoder, &decoder_output)) != 0) {
-                fprintf(stderr, "Failed to decode image!\n");
-            }
+            decoder->do_decode_phase2(sample_idx, output_data);
         }
     }
 
    private:
-    struct gpujpeg_decoder *decoder;
+    std::shared_ptr<jpeg_dec::GPUDecoder> decoder;
 };
 
 }  // namespace jpegdec

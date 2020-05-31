@@ -194,6 +194,8 @@ int gpujpeg_decoder_decode_phase1(struct gpujpeg_decoder* decoder, uint8_t* imag
     int rc;
     int unsupp_gpu_huffman_params = 0;
 
+    assert(jpeg_header != NULL || (image != NULL && image_size > 0));
+
     // Reset durations
     coder->duration_huffman_cpu = 0.0;
     coder->duration_memory_map = 0.0;
