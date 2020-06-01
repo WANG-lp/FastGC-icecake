@@ -893,7 +893,6 @@ int gpujpeg_reader_read_image_with_header(struct gpujpeg_decoder* decoder, void*
     assert(jpeg_header != NULL && get_jpeg_header_status(jpeg_header) == 1);
     // gpujpeg_reader_set_jpeg_header(decoder->reader, jpeg_header);
     int rc;
-    // Setup reader and decoder
     decoder->reader->param = decoder->coder.param;
     decoder->reader->param_image = decoder->coder.param_image;
     decoder->reader->comp_count = 0;

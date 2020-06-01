@@ -416,7 +416,7 @@ size_t gpujpeg_coder_init_image(struct gpujpeg_coder* coder, struct gpujpeg_para
     // Allocate color components
     if (param_image->comp_count > coder->component_allocated_size) {
         coder->component_allocated_size = 0;
-        printf("comp_count\n");
+        // printf("comp_count\n");
 
         // (Re)allocate color components in host memory
         if (coder->component != NULL) {
@@ -559,7 +559,7 @@ size_t gpujpeg_coder_init_image(struct gpujpeg_coder* coder, struct gpujpeg_para
 
     // Allocate segments
     if (coder->segment_count > coder->segment_allocated_size) {
-        printf("segment\n");
+        // printf("segment\n");
         coder->segment_allocated_size = 0;
 
         // (Re)allocate segments  in host memory
@@ -681,7 +681,7 @@ size_t gpujpeg_coder_init_image(struct gpujpeg_coder* coder, struct gpujpeg_para
         (GPUJPEG_IDCT_BLOCK_X * GPUJPEG_IDCT_BLOCK_Y * GPUJPEG_IDCT_BLOCK_Z / coder->component[0].data_width + 1) *
         GPUJPEG_BLOCK_SIZE * coder->component[0].data_width;
     if (coder->data_size + idct_overhead > coder->data_allocated_size) {
-        printf("data size\n");
+        // printf("data size\n");
 
         coder->data_allocated_size = 0;
 
@@ -737,7 +737,7 @@ size_t gpujpeg_coder_init_image(struct gpujpeg_coder* coder, struct gpujpeg_para
     // max_compressed_data_size *= 2;
     if (max_compressed_data_size > coder->data_compressed_allocated_size) {
         coder->data_compressed_allocated_size = 0;
-        printf("max_compressed_data_size\n");
+        // printf("max_compressed_data_size\n");
 
         // (Re)allocate huffman coder data in host memory
         if (coder->data_compressed != NULL) {
@@ -775,7 +775,7 @@ size_t gpujpeg_coder_init_image(struct gpujpeg_coder* coder, struct gpujpeg_para
     }
     if (coder->block_count > coder->block_allocated_size) {
         coder->block_allocated_size = 0;
-        printf("block_count\n");
+        // printf("block_count\n");
 
         // (Re)allocate list of block indices in host memory
         if (coder->block_list != NULL) {

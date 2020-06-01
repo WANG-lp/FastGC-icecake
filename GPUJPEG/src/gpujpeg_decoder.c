@@ -146,6 +146,37 @@ struct gpujpeg_decoder* gpujpeg_decoder_create(cudaStream_t* stream) {
     return decoder;
 }
 
+GPUJPEG_API struct gpujpeg_decoder* gpujpeg_decoder_create_with_max_image_size(cudaStream_t* stream,
+                                                                               uint8_t* image_data,
+                                                                               size_t image_data_len,
+                                                                               void* jpeg_header) {
+    struct gpujpeg_decoder* decoder = gpujpeg_decoder_create(stream);
+    if (decoder == NULL) {
+        return NULL;
+    }
+    gpujpeg_decoder_set_output_format(decoder, GPUJPEG_RGB, GPUJPEG_444_U8_P012);
+
+    // TODO: replace init with a dummy param_image
+    int rc;
+    rc = gpujpeg_decoder_decode_phase1(decoder, image_data, image_data_len, jpeg_header);
+    if (rc) {
+        gpujpeg_decoder_destroy(decoder);
+        return NULL;
+    }
+    rc = gpujpeg_decoder_decode_phase2(decoder, NULL);
+    if (rc) {
+        gpujpeg_decoder_destroy(decoder);
+        return NULL;
+    }
+    decoder->max_comp = decoder->reader->param_image.comp_count;
+    decoder->max_height = decoder->reader->param_image.height;
+    decoder->max_width = decoder->reader->param_image.width;
+
+    printf("max: %d %d %d\n", decoder->max_height, decoder->max_width, decoder->max_comp);
+
+    return decoder;
+}
+
 /* Documented at declaration */
 int gpujpeg_decoder_init(struct gpujpeg_decoder* decoder, struct gpujpeg_parameters* param,
                          struct gpujpeg_image_parameters* param_image) {
@@ -174,8 +205,8 @@ int gpujpeg_decoder_init(struct gpujpeg_decoder* decoder, struct gpujpeg_paramet
     //     fprintf(stderr, "[GPUJPEG] [Error] Can't reinitialize decoder, implement if needed!\n");
     //     return -1;
     // }
-    printf("%d %d %d\n", param_image->height, param_image->width, param_image->comp_count);
-    printf("%d %d %d\n", coder->param_image.height, coder->param_image.width, coder->param_image.comp_count);
+    // printf("%d %d %d\n", param_image->height, param_image->width, param_image->comp_count);
+    // printf("%d %d %d\n", coder->param_image.height, coder->param_image.width, coder->param_image.comp_count);
 
     // if (param_image->height <= coder->param_image.height && param_image->width <= coder->param_image.width &&
     //     param_image->comp_count <= coder->param_image.comp_count) {
@@ -185,18 +216,29 @@ int gpujpeg_decoder_init(struct gpujpeg_decoder* decoder, struct gpujpeg_paramet
     //     return 0;
     // }
     // Initialize coder
+    bool early_exit = false;
     if (!decoder->coder_inited) {
-        printf("init\n");
         if (gpujpeg_coder_init(coder) != 0) {
             return -1;
         }
         decoder->coder_inited = true;
+    } else {
+        if (decoder->max_height > 0) {
+            if (param_image->height > decoder->max_height || param_image->width > decoder->max_width ||
+                param_image->comp_count > decoder->max_comp) {
+                fprintf(stderr, "[GPUJPEG] [Error] Image is too large!\n");
+                return -1;
+            }
+            early_exit = true;
+        }
     }
 
     if (0 == gpujpeg_coder_init_image(coder, param, param_image, decoder->stream)) {
         return -1;
     }
-
+    if (early_exit) {
+        return 0;
+    }
     // Init postprocessor
     if (gpujpeg_preprocessor_decoder_init(&decoder->coder) != 0) {
         fprintf(stderr, "[GPUJPEG] [Error] Failed to init postprocessor!\n");
@@ -369,6 +411,10 @@ int gpujpeg_decoder_decode_phase2(struct gpujpeg_decoder* decoder, struct gpujpe
         if (cudaSuccess != cudaMalloc((void**) &coder->d_data_raw_allocated, coder->data_raw_size * sizeof(uint8_t))) {
             return -1;
         }
+    }
+
+    if (!set_output) {
+        return 0;
     }
 
     // Select CUDA output buffer

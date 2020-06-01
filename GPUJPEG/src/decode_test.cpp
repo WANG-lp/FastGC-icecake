@@ -9,7 +9,6 @@
 #include "../include/jpeg_decoder_export.h"
 #include "../libgpujpeg/gpujpeg.h"
 #include "../libgpujpeg/gpujpeg_common.h"
-#include "decoder_helper.h"
 #include "gpujpeg_common_internal.h"   // TIMER
 #include "gpujpeg_decoder_internal.h"  // TIMER
 #include "gpujpeg_util.h"
@@ -43,7 +42,10 @@ void decode(vector<vector<uint8_t>> image_data, int num_thread, int max_iter, vo
     vector<struct gpujpeg_decoder_output> decoder_outputs(image_data.size());
 
     for (int i = 0; i < image_data.size(); i++) {
-        decoders[i] = gpujpeg_decoder_create(NULL);
+        // decoders[i] = gpujpeg_decoder_create(NULL);
+        decoders[i] =
+            gpujpeg_decoder_create_with_max_image_size(0, image_data[i].data(), image_data[i].size(), nullptr);
+
         assert(decoders[i] != nullptr);
         gpujpeg_decoder_output_set_default(&decoder_outputs[i]);
         decoder_outputs[i].type = GPUJPEG_DECODER_OUTPUT_CUDA_BUFFER;
@@ -236,28 +238,29 @@ int main(int argc, char** argv) {
 
     // return RPC_test(input, image, image_size);
 
-    gpujpeg_decoder* decoder1 = gpujpeg_decoder_create(0);
-    gpujpeg_decoder* decoder2 = gpujpeg_decoder_create(0);
-
-    // init_decoder_with_image(decoder1, "/tmp/test_mouse_rst_1b.jpeg");
+    gpujpeg_decoder* decoder1 = gpujpeg_decoder_create_with_max_image_size(0, image, image_size, nullptr);
+    // gpujpeg_decoder* decoder1 = gpujpeg_decoder_create(0);
 
     // warmup(input, decoder1, image, image_size, nullptr, 1);
     printf("\n");
     jc.putJPEG(input);
     void* jpeg_header_raw = jc.getHeader(input);
     void* jpeg_header_croped = jc.getHeaderwithCrop(input, 0, 0, 320, 320);
-    void* jpeg_header_croped2 = jc.getHeaderwithCrop(input, 0, 0, 240, 240);
+    void* jpeg_header_croped2 = jc.getHeaderwithCrop(input, 0, 0, 224, 224);
+
+    restore_block_offset_from_compact(jpeg_header_raw);
     restore_block_offset_from_compact(jpeg_header_croped);
     restore_block_offset_from_compact(jpeg_header_croped2);
+    warmup(input, decoder1, image, image_size, jpeg_header_croped2, 1);
     warmup(input, decoder1, image, image_size, jpeg_header_croped, 1);
     warmup(input, decoder1, image, image_size, jpeg_header_croped2, 1);
-    return 0;
-    if (get_jpeg_header_status(jpeg_header_croped) == 1) {
-        printf("has header\n");
-        warmup(input, decoder2, image, image_size, jpeg_header_croped, 1000);
-    } else {
-        warmup(input, decoder2, image, image_size, nullptr, 1000);
-    }
+    // // return 0;
+    // if (get_jpeg_header_status(jpeg_header_croped) == 1) {
+    //     printf("has header\n");
+    //     warmup(input, decoder1, image, image_size, jpeg_header_croped, 1000);
+    // } else {
+    //     warmup(input, decoder1, image, image_size, nullptr, 1000);
+    // }
     // return 0;
     assert(argc >= 6);
     int thread_num = atoi(argv[3]);
@@ -272,14 +275,14 @@ int main(int argc, char** argv) {
         image_data.emplace_back(image, image + image_size);
     }
 
-    gpujpeg_decoder* decoder3 = gpujpeg_decoder_create(0);
-    warmup(input, decoder3, image, image_size, jpeg_header_croped, 1000);
+    // warmup(input, decoder1, image, image_size, jpeg_header_croped, 1000);
 
-    decode(image_data, thread_num, max_iter, jpeg_header_croped);
+    decode(image_data, thread_num, max_iter, jpeg_header_croped2);
 
     // Destroy image
     gpujpeg_image_destroy(image);
     // Destroy decoder
-    gpujpeg_decoder_destroy(decoder1);
+    // gpujpeg_decoder_destroy(decoder1);
+
     return 0;
 }

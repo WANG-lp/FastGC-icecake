@@ -135,7 +135,10 @@ GPUJPEG_API void gpujpeg_decoder_output_set_custom_cuda(struct gpujpeg_decoder_o
  * @return decoder structure if succeeds, otherwise NULL
  */
 GPUJPEG_API struct gpujpeg_decoder* gpujpeg_decoder_create(cudaStream_t* stream);
-
+GPUJPEG_API struct gpujpeg_decoder* gpujpeg_decoder_create_with_max_image_size(cudaStream_t* stream,
+                                                                               uint8_t* image_data,
+                                                                               size_t image_data_len,
+                                                                               void* jpeg_header);
 /**
  * Init JPEG decoder for specific image size
  *
