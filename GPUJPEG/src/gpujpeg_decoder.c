@@ -168,11 +168,6 @@ GPUJPEG_API struct gpujpeg_decoder* gpujpeg_decoder_create_with_max_image_size(c
         gpujpeg_decoder_destroy(decoder);
         return NULL;
     }
-    decoder->max_comp = decoder->reader->param_image.comp_count;
-    decoder->max_height = decoder->reader->param_image.height;
-    decoder->max_width = decoder->reader->param_image.width;
-
-    printf("max: %d %d %d\n", decoder->max_height, decoder->max_width, decoder->max_comp);
 
     return decoder;
 }
@@ -222,15 +217,19 @@ int gpujpeg_decoder_init(struct gpujpeg_decoder* decoder, struct gpujpeg_paramet
             return -1;
         }
         decoder->coder_inited = true;
+        decoder->max_comp = param_image->comp_count;
+        decoder->max_height = param_image->height;
+        decoder->max_width = param_image->width;
+
+        printf("max: %d %d %d\n", decoder->max_height, decoder->max_width, decoder->max_comp);
+
     } else {
-        if (decoder->max_height > 0) {
-            if (param_image->height > decoder->max_height || param_image->width > decoder->max_width ||
-                param_image->comp_count > decoder->max_comp) {
-                fprintf(stderr, "[GPUJPEG] [Error] Image is too large!\n");
-                return -1;
-            }
-            early_exit = true;
+        if (param_image->height > decoder->max_height || param_image->width > decoder->max_width ||
+            param_image->comp_count > decoder->max_comp) {
+            fprintf(stderr, "[GPUJPEG] [Error] Image is too large!\n");
+            return -1;
         }
+        early_exit = true;
     }
 
     if (0 == gpujpeg_coder_init_image(coder, param, param_image, decoder->stream)) {

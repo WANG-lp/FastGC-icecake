@@ -3,11 +3,31 @@
 #include "../GPUJPEG/libgpujpeg/gpujpeg_common.h"
 #include "../GPUJPEG/libgpujpeg/gpujpeg_decoder.h"
 
+#include <fstream>
+
 namespace jpeg_dec {
 GPUDecoder::GPUDecoder(int thread_num) : decoder_idx(0) {
     decoders.resize(thread_num, nullptr);
     for (int i = 0; i < thread_num; i++) {
         decoders[i] = gpujpeg_decoder_create(nullptr);
+        gpujpeg_decoder_set_output_format(decoders[i], GPUJPEG_RGB, GPUJPEG_444_U8_P012);
+    }
+}
+GPUDecoder::GPUDecoder(int thread_num, const string& init_image) {
+    std::ifstream ifs(init_image, std::ios::binary | std::ios::ate);
+    if (!ifs.good()) {
+        printf("Error while opening file %s\n", init_image.c_str());
+        return;
+    }
+    std::streamsize size = ifs.tellg();
+    ifs.seekg(0, std::ios::beg);
+
+    std::vector<uint8_t> buffer(size);
+    ifs.read((char*) buffer.data(), size);
+
+    decoders.resize(thread_num, nullptr);
+    for (int i = 0; i < thread_num; i++) {
+        decoders[i] = gpujpeg_decoder_create_with_max_image_size(nullptr, buffer.data(), buffer.size(), nullptr);
         gpujpeg_decoder_set_output_format(decoders[i], GPUJPEG_RGB, GPUJPEG_444_U8_P012);
     }
 }
