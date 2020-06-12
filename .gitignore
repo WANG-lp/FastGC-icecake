@@ -28,3 +28,5 @@ cmake-build-debug/
 python/build
 python/dist
 python/pyicecake.egg-info/
+
+.log
