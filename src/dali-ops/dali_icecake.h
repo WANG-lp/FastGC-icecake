@@ -50,10 +50,8 @@ class DaliIcecake : public dali::Operator<dali::CPUBackend> {
 class DaliIcecakeMixed : public dali::Operator<dali::MixedBackend> {
    public:
     inline explicit DaliIcecakeMixed(const ::dali::OpSpec &spec) : ::dali::Operator<dali::MixedBackend>(spec) {
-        // decoder =
-        //     std::shared_ptr<jpeg_dec::GPUDecoder>(new jpeg_dec::GPUDecoder(batch_size_,
-        //     "/tmp/test_mouse_rst_1b.jpeg"));
-        decoder = std::shared_ptr<jpeg_dec::GPUDecoder>(new jpeg_dec::GPUDecoder(batch_size_));
+        decoder = std::shared_ptr<jpeg_dec::GPUDecoder>(new jpeg_dec::GPUDecoder(batch_size_, "/tmp/test_7687.jpeg"));
+        // decoder = std::shared_ptr<jpeg_dec::GPUDecoder>(new jpeg_dec::GPUDecoder(batch_size_));
     }
 
     virtual inline ~DaliIcecakeMixed() {}
@@ -96,7 +94,7 @@ class DaliIcecakeMixed : public dali::Operator<dali::MixedBackend> {
         output.SetLayout("HWC");
         TypeInfo type = TypeInfo::Create<uint8_t>();
         output.set_type(type);
-// #pragma omp parallel for num_threads(num_threads_)
+        // #pragma omp parallel for num_threads(num_threads_)
         for (size_t idx = 0; idx < image_order.size(); idx++) {
             auto &size_idx = image_order[idx];
             const int sample_idx = size_idx.second;

@@ -15,6 +15,7 @@ import torch.utils.data.distributed
 import torchvision.transforms as transforms
 import torchvision.datasets as datasets
 import torchvision.models as models
+from random import shuffle
 
 import numpy as np
 
@@ -31,6 +32,11 @@ try:
     import sys
     sys.path.append('/home/lwangay/workspace/FastGC-icecake/build/lib')
     import pjcache as JC
+    import nvidia.dali.plugin_manager as plugin_manager
+    import os
+    print(os.path.dirname(JC.__file__)+"/libdali_icecake.so")
+    plugin_manager.load_library(os.path.dirname(
+        JC.__file__)+"/libdali_icecake.so")
 except ImportError:
     raise ImportError("Cannot import JPEG-Cache")
 
@@ -202,6 +208,331 @@ class FakeInputPipe(Pipeline):
             raise StopIteration
 
 
+class JCacheCropIter(object):
+    def __init__(self, batch_size, device_id, num_gpus, crop=True):
+        self.batch_size = batch_size
+        self.files = ["/tmp/test_7687.jpeg"]
+        # whole data set size
+        self.data_set_len = 1280000
+        self.n = self.data_set_len
+        self.jc = JC.JPEGCacheClient("127.0.0.1", 8090)
+        for f in self.files:
+            self.jc.put(f)
+        self.crop = crop
+
+    def __iter__(self):
+        self.i = 0
+        return self
+
+    def __next__(self):
+        batch = []
+        labels = []
+
+        if self.i >= self.n:
+            raise StopIteration
+
+        for _ in range(self.batch_size):
+            label = '0'
+            jpeg_filename = self.files[0]
+            # buff = np.frombuffer(self.jc.get_serialized_header_random_crop(
+            # jpeg_filename), dtype=np.uint8)
+            buff = None
+            if self.crop:
+                buff = np.frombuffer(self.jc.get_serialized_header_ROI(
+                    jpeg_filename, 0, 0, 224, 224), dtype=np.uint8)
+            else:
+                buff = np.frombuffer(self.jc.get_serialized_header(
+                    jpeg_filename), dtype=np.uint8)
+
+            batch.append(buff)
+            labels.append(np.array([label], dtype=np.uint8))
+            self.i = (self.i + 1) % self.n
+        return (batch, labels)
+
+    @property
+    def size(self,):
+        return self.data_set_len
+
+    next = __next__
+
+
+class JcacheInputPipe(Pipeline):
+    def __init__(self, batch_size, num_threads, device_id, data_dir, crop,
+                 shard_id, num_shards, dali_cpu=False):
+        super(JcacheInputPipe, self).__init__(batch_size,
+                                              num_threads,
+                                              device_id,
+                                              seed=12 + device_id)
+        self.external_data = JCacheCropIter(
+            batch_size, device_id, num_shards)
+
+        self.iterator = iter(self.external_data)
+
+        self.input = ops.ExternalSource()
+        self.input_label = ops.ExternalSource()
+        # let user decide which pipeline works him bets for RN version he runs
+        self.decode = ops.DaliIcecake(device="mixed")
+        self.res = ops.Resize(device="gpu",
+                              resize_x=crop,
+                              resize_y=crop,
+                              interp_type=types.INTERP_TRIANGULAR)
+        self.cmnp = ops.CropMirrorNormalize(device="gpu",
+                                            output_dtype=types.FLOAT,
+                                            output_layout=types.NCHW,
+                                            crop=(crop, crop),
+                                            image_type=types.RGB,
+                                            mean=[0.485 * 255, 0.456 *
+                                                  255, 0.406 * 255],
+                                            std=[0.229 * 255, 0.224 * 255, 0.225 * 255])
+        self.coin = ops.CoinFlip(probability=0.5)
+        print('JCACHE!!!!!! DALI "{0}" variant'.format("gpu"))
+
+    def define_graph(self):
+        rng = self.coin()
+        self.jpegs = self.input()
+        self.labels = self.input_label()
+        images = self.decode(self.jpegs)
+        images = self.res(images)
+        output = self.cmnp(images.gpu(), mirror=rng)
+        return [output, self.labels]
+
+    def epoch_size(self, name=None):
+        return self.external_data.size
+
+    def iter_setup(self):
+        try:
+            (images, labels) = self.iterator.next()
+            self.feed_input(self.jpegs, images)
+            self.feed_input(self.labels, labels)
+        except StopIteration:
+            self.iterator = iter(self.external_data)
+            raise StopIteration
+
+
+class JcacheInputNoCropPipe(Pipeline):
+    def __init__(self, batch_size, num_threads, device_id, data_dir, crop,
+                 shard_id, num_shards, dali_cpu=False):
+        super(JcacheInputNoCropPipe, self).__init__(batch_size,
+                                                    num_threads,
+                                                    device_id,
+                                                    seed=12 + device_id)
+        self.external_data = JCacheCropIter(
+            batch_size, device_id, num_shards, False)
+
+        self.iterator = iter(self.external_data)
+
+        self.input = ops.ExternalSource()
+        self.input_label = ops.ExternalSource()
+        # let user decide which pipeline works him bets for RN version he runs
+        self.decode = ops.DaliIcecake(device="mixed")
+        self.res = ops.RandomResizedCrop(device="gpu", random_aspect_ratio=[
+            0.8, 1.25],
+            random_area=[0.1, 1.0],
+            size=crop,
+            interp_type=types.INTERP_TRIANGULAR)
+        self.cmnp = ops.CropMirrorNormalize(device="gpu",
+                                            output_dtype=types.FLOAT,
+                                            output_layout=types.NCHW,
+                                            crop=(crop, crop),
+                                            image_type=types.RGB,
+                                            mean=[0.485 * 255, 0.456 *
+                                                  255, 0.406 * 255],
+                                            std=[0.229 * 255, 0.224 * 255, 0.225 * 255])
+        self.coin = ops.CoinFlip(probability=0.5)
+        print('JCACHE!!!!!! DALI "{0}" variant'.format("gpu"))
+
+    def define_graph(self):
+        rng = self.coin()
+        self.jpegs = self.input()
+        self.labels = self.input_label()
+        images = self.decode(self.jpegs)
+        images = self.res(images)
+        output = self.cmnp(images.gpu(), mirror=rng)
+        return [output, self.labels]
+
+    def epoch_size(self, name=None):
+        return self.external_data.size
+
+    def iter_setup(self):
+        try:
+            (images, labels) = self.iterator.next()
+            self.feed_input(self.jpegs, images)
+            self.feed_input(self.labels, labels)
+        except StopIteration:
+            self.iterator = iter(self.external_data)
+            raise StopIteration
+
+
+class ExternalReaderInputIter(object):
+
+    def __init__(self, batch_size, device_id, num_gpus):
+        global args
+        self.images_dir = args.data[0]
+        self.batch_size = batch_size
+        with open("/mnt/optane-ssd/lipeng/imagenet/train_label.txt", 'r') as f:
+            self.files = [line.rstrip() for line in f if line is not '']
+        # whole data set size
+        self.data_set_len = len(self.files)
+        # based on the device_id and total number of GPUs - world size
+        # get proper shard
+        self.files = self.files[self.data_set_len * device_id // num_gpus:
+                                self.data_set_len * (device_id + 1) // num_gpus]
+        self.n = len(self.files)
+
+    def __iter__(self):
+        self.i = 0
+        shuffle(self.files)
+        return self
+
+    def __next__(self):
+        batch = []
+        labels = []
+
+        if self.i >= self.n:
+            raise StopIteration
+
+        for _ in range(self.batch_size):
+            jpeg_filename, label = self.files[self.i].split(' ')
+            f = open(self.images_dir + jpeg_filename, 'rb')
+            batch.append(np.frombuffer(f.read(), dtype=np.uint8))
+            labels.append(np.array([label], dtype=np.uint8))
+            self.i = (self.i + 1) % self.n
+            f.close()
+        return (batch, labels)
+
+    @property
+    def size(self,):
+        return self.data_set_len
+
+    next = __next__
+
+
+class ExtReaderPipe(Pipeline):
+    def __init__(self, batch_size, num_threads, device_id, data_dir, crop,
+                 shard_id, num_shards, dali_cpu=False):
+        super(ExtReaderPipe, self).__init__(batch_size,
+                                            num_threads,
+                                            device_id,
+                                            seed=12 + device_id)
+        self.external_data = ExternalReaderInputIter(
+            batch_size, device_id, num_shards)
+
+        self.iterator = iter(self.external_data)
+
+        self.input = ops.ExternalSource()
+        self.input_label = ops.ExternalSource()
+        # let user decide which pipeline works him bets for RN version he runs
+        dali_device = 'cpu' if dali_cpu else 'gpu'
+        decoder_device = 'cpu' if dali_cpu else 'mixed'
+        # This padding sets the size of the internal nvJPEG buffers to be able to handle all images from full-sized ImageNet
+        # without additional reallocations
+        device_memory_padding = 211025920 if decoder_device == 'mixed' else 0
+        host_memory_padding = 140544512 if decoder_device == 'mixed' else 0
+        self.decode = ops.ImageDecoderRandomCrop(device=decoder_device, output_type=types.RGB,
+                                                 device_memory_padding=device_memory_padding,
+                                                 host_memory_padding=host_memory_padding,
+                                                 random_aspect_ratio=[
+                                                     0.8, 1.25],
+                                                 random_area=[0.1, 1.0],
+                                                 num_attempts=100)
+        self.res = ops.Resize(device=dali_device,
+                              resize_x=crop,
+                              resize_y=crop,
+                              interp_type=types.INTERP_TRIANGULAR)
+        self.cmnp = ops.CropMirrorNormalize(device="gpu",
+                                            output_dtype=types.FLOAT,
+                                            output_layout=types.NCHW,
+                                            crop=(crop, crop),
+                                            image_type=types.RGB,
+                                            mean=[0.485 * 255, 0.456 *
+                                                  255, 0.406 * 255],
+                                            std=[0.229 * 255, 0.224 * 255, 0.225 * 255])
+        self.coin = ops.CoinFlip(probability=0.5)
+        print('Ext Reader!!!!!! DALI "{0}" variant'.format("gpu"))
+
+    def define_graph(self):
+        rng = self.coin()
+        self.jpegs = self.input()
+        self.labels = self.input_label()
+        images = self.decode(self.jpegs)
+        images = self.res(images)
+        output = self.cmnp(images.gpu(), mirror=rng)
+        return [output, self.labels]
+
+    def epoch_size(self, name=None):
+        return self.external_data.size
+
+    def iter_setup(self):
+        try:
+            (images, labels) = self.iterator.next()
+            self.feed_input(self.jpegs, images)
+            self.feed_input(self.labels, labels)
+        except StopIteration:
+            self.iterator = iter(self.external_data)
+            raise StopIteration
+
+
+class ExtReaderNoROIPipe(Pipeline):
+    def __init__(self, batch_size, num_threads, device_id, data_dir, crop,
+                 shard_id, num_shards, dali_cpu=False):
+        super(ExtReaderNoROIPipe, self).__init__(batch_size,
+                                                 num_threads,
+                                                 device_id,
+                                                 seed=12 + device_id)
+        self.external_data = ExternalReaderInputIter(
+            batch_size, device_id, num_shards)
+
+        self.iterator = iter(self.external_data)
+
+        self.input = ops.ExternalSource()
+        self.input_label = ops.ExternalSource()
+        # let user decide which pipeline works him bets for RN version he runs
+        dali_device = 'cpu' if dali_cpu else 'gpu'
+        decoder_device = 'cpu' if dali_cpu else 'mixed'
+        # This padding sets the size of the internal nvJPEG buffers to be able to handle all images from full-sized ImageNet
+        # without additional reallocations
+        device_memory_padding = 211025920 if decoder_device == 'mixed' else 0
+        host_memory_padding = 140544512 if decoder_device == 'mixed' else 0
+        self.decode = ops.ImageDecoder(device=decoder_device, output_type=types.RGB, device_memory_padding=device_memory_padding,
+                                       host_memory_padding=host_memory_padding)
+        self.res = ops.RandomResizedCrop(device=dali_device, random_aspect_ratio=[
+            0.8, 1.25],
+            random_area=[0.1, 1.0],
+            size=crop,
+            interp_type=types.INTERP_TRIANGULAR)
+        self.cmnp = ops.CropMirrorNormalize(device="gpu",
+                                            output_dtype=types.FLOAT,
+                                            output_layout=types.NCHW,
+                                            crop=(crop, crop),
+                                            image_type=types.RGB,
+                                            mean=[0.485 * 255, 0.456 *
+                                                  255, 0.406 * 255],
+                                            std=[0.229 * 255, 0.224 * 255, 0.225 * 255])
+        self.coin = ops.CoinFlip(probability=0.5)
+        print('Ext noROI Reader!!!!!! DALI "{0}" variant'.format("gpu"))
+
+    def define_graph(self):
+        rng = self.coin()
+        self.jpegs = self.input()
+        self.labels = self.input_label()
+        images = self.decode(self.jpegs)
+        images = self.res(images)
+        output = self.cmnp(images.gpu(), mirror=rng)
+        return [output, self.labels]
+
+    def epoch_size(self, name=None):
+        return self.external_data.size
+
+    def iter_setup(self):
+        try:
+            (images, labels) = self.iterator.next()
+            self.feed_input(self.jpegs, images)
+            self.feed_input(self.labels, labels)
+        except StopIteration:
+            self.iterator = iter(self.external_data)
+            raise StopIteration
+
+
 class HybridTrainPipe(Pipeline):
     def __init__(self, batch_size, num_threads, device_id, data_dir, crop,
                  shard_id, num_shards, dali_cpu=False):
@@ -210,6 +541,7 @@ class HybridTrainPipe(Pipeline):
                                               device_id,
                                               seed=12 + device_id)
         self.input = ops.FileReader(file_root=data_dir,
+                                    file_list="train_label.txt",
                                     shard_id=args.local_rank,
                                     num_shards=args.world_size,
                                     random_shuffle=True,
@@ -433,14 +765,14 @@ def main():
         crop_size = 224
         val_size = 256
 
-    pipe = FakeInputPipe(batch_size=args.batch_size,
-                         num_threads=args.workers,
-                         device_id=args.local_rank,
-                         data_dir=traindir,
-                         crop=crop_size,
-                         dali_cpu=args.dali_cpu,
-                         shard_id=args.local_rank,
-                         num_shards=args.world_size)
+    pipe = JcacheInputNoCropPipe(batch_size=args.batch_size,
+                                 num_threads=args.workers,
+                                 device_id=args.local_rank,
+                                 data_dir=traindir,
+                                 crop=crop_size,
+                                 dali_cpu=args.dali_cpu,
+                                 shard_id=args.local_rank,
+                                 num_shards=args.world_size)
     pipe.build()
     print(pipe.epoch_size("Reader"))
     train_loader = DALIClassificationIterator(
