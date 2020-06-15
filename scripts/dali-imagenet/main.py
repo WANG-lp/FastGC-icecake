@@ -110,13 +110,26 @@ def to_python_float(t):
 
 class ExternalFakeInputIter(object):
     def __init__(self, batch_size, device_id, num_gpus):
+        global args
+        self.images_dir = args.data[0]
+        if self.images_dir[-1] != '/':
+            self.images_dir += '/'
         self.batch_size = batch_size
-        self.data_set_len = 1280000
-        self.n = self.data_set_len
-        self.fake_content = None
-        f = open("/tmp/test_7687.jpeg", 'rb')
-        self.fake_content = f.read()
-        f.close()
+        with open("/mnt/optane-ssd/lipeng/imagenet/train_label.txt", 'r') as f:
+            self.files = [line.rstrip() for line in f if line is not '']
+        # whole data set size
+        self.data_set_len = len(self.files)
+        # based on the device_id and total number of GPUs - world size
+        # get proper shard
+        self.files = self.files[self.data_set_len * device_id // num_gpus:
+                                self.data_set_len * (device_id + 1) // num_gpus]
+        self.n = len(self.files)
+        self.file_content = []
+        for idx in range(batch_size):
+            jpeg_filename, label = self.files[idx].split(' ')
+            f = open(self.images_dir + jpeg_filename, 'rb')
+            self.file_content.append(f.read())
+            f.close()
 
     def __iter__(self):
         self.i = 0
@@ -129,9 +142,9 @@ class ExternalFakeInputIter(object):
         if self.i >= self.n:
             raise StopIteration
 
-        for _ in range(self.batch_size):
-            label = '0'
-            batch.append(np.frombuffer(self.fake_content, dtype=np.uint8))
+        for idx in range(self.batch_size):
+            jpeg_filename, label = self.files[idx].split(' ')
+            batch.append(np.frombuffer(self.file_content[idx], dtype=np.uint8))
             labels.append(np.array([label], dtype=np.uint8))
             self.i = (self.i + 1) % self.n
         return (batch, labels)
@@ -368,6 +381,8 @@ class ExternalReaderInputIter(object):
     def __init__(self, batch_size, device_id, num_gpus):
         global args
         self.images_dir = args.data[0]
+        if self.images_dir[-1] != '/':
+            self.images_dir += '/'
         self.batch_size = batch_size
         with open("/mnt/optane-ssd/lipeng/imagenet/train_label.txt", 'r') as f:
             self.files = [line.rstrip() for line in f if line is not '']
@@ -541,7 +556,7 @@ class HybridTrainPipe(Pipeline):
                                               device_id,
                                               seed=12 + device_id)
         self.input = ops.FileReader(file_root=data_dir,
-                                    file_list="train_label.txt",
+                                    # file_list="train_label.txt",
                                     shard_id=args.local_rank,
                                     num_shards=args.world_size,
                                     random_shuffle=True,
@@ -634,7 +649,7 @@ def main():
         args.data.append('/data/imagenet/train-jpeg/')
         args.data.append('/data/imagenet/val-jpeg/')
         print("Test mode - no DDP, no apex, RN50, 10 iterations")
-
+    print("batch_size: {}".format(args.batch_size))
     if not len(args.data):
         raise Exception("error: No data set provided")
 
@@ -765,14 +780,14 @@ def main():
         crop_size = 224
         val_size = 256
 
-    pipe = JcacheInputNoCropPipe(batch_size=args.batch_size,
-                                 num_threads=args.workers,
-                                 device_id=args.local_rank,
-                                 data_dir=traindir,
-                                 crop=crop_size,
-                                 dali_cpu=args.dali_cpu,
-                                 shard_id=args.local_rank,
-                                 num_shards=args.world_size)
+    pipe = ExtReaderPipe(batch_size=args.batch_size,
+                         num_threads=args.workers,
+                         device_id=args.local_rank,
+                         data_dir=traindir,
+                         crop=crop_size,
+                         dali_cpu=args.dali_cpu,
+                         shard_id=args.local_rank,
+                         num_shards=args.world_size)
     pipe.build()
     print(pipe.epoch_size("Reader"))
     train_loader = DALIClassificationIterator(
@@ -925,6 +940,8 @@ def train(train_loader, model, criterion, optimizer, epoch):
                           args.world_size*args.batch_size/batch_time.avg,
                           batch_time=batch_time, data_time=data_time,
                           loss=losses, top1=top1, top5=top5))
+        if i == 500:
+            exit(0)
 
         # Pop range "Body of iteration {}".format(i)
         if args.prof >= 0:
