@@ -238,12 +238,12 @@ int main(int argc, char** argv) {
 
     // return RPC_test(input, image, image_size);
 
-    gpujpeg_decoder* decoder1 = gpujpeg_decoder_create_with_max_image_size(0, image, image_size, nullptr);
-    // gpujpeg_decoder* decoder1 = gpujpeg_decoder_create(0);
+    // gpujpeg_decoder* decoder1 = gpujpeg_decoder_create_with_max_image_size(0, image, image_size, nullptr);
+    gpujpeg_decoder* decoder1 = gpujpeg_decoder_create(0);
 
     // warmup(input, decoder1, image, image_size, nullptr, 1);
     printf("\n");
-    jc.putJPEG(input);
+    assert(jc.putJPEG(input));
     void* jpeg_header_raw = jc.getHeader(input);
     void* jpeg_header_croped = jc.getHeaderwithCrop(input, 0, 0, 320, 320);
     void* jpeg_header_croped2 = jc.getHeaderwithCrop(input, 0, 0, 224, 224);
