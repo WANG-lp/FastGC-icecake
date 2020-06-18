@@ -276,6 +276,9 @@ void JPEGDec::Parser() {
                 // spdlog::info("SOF0(baseline), offset: {}", off);
                 images.sof0_offset = off - 1;  // 0xFFC0 (at 0xFF)
                 off += Parser_SOF0(data.data() + off + 1);
+                if (header.status == 2) {
+                    return;
+                }
                 break;
             };
             case SOS_SYM: {
@@ -318,7 +321,9 @@ void JPEGDec::Parser() {
             }
             default: {
                 off += 1;
+                header.status = 2;
                 spdlog::info("Unknown marker, offset: {}, byte: {:x}", off, c);
+                return;
             }
         }
     }
@@ -451,6 +456,17 @@ size_t JPEGDec::Parser_SOF0(uint8_t *data_ptr) {
 
     // spdlog::info("max horizontal sampling: {}, max vertical sampling: {}", images.sof.max_horizontal_sampling,
     //              images.sof.max_vertical_sampling);
+    if (num_component != 3) {
+        header.status = 2;
+        spdlog::error("num comp is {}", num_component);
+    }
+    for (uint8_t i = 0; i < num_component; i++) {
+        if (images.sof.component_infos[i].horizontal_sampling != 1 ||
+            images.sof.component_infos[i].vertical_sampling != 1) {
+            header.status = 2;
+            spdlog::error("sampling is not 444");
+        }
+    }
     return ret;
 }
 
@@ -521,6 +537,10 @@ size_t JPEGDec::Parser_SOS(uint8_t *data_ptr) {
     data_raw += 1;
 
     // we only support 3 channel (color) images
+    if (component_num != 3) {
+        header.status = 2;
+        return 1;
+    }
     assert(component_num == 3);
 
     for (uint8_t i = 0; i < 3; i++) {
@@ -877,8 +897,10 @@ size_t JPEGDec::Scan_MCUs(uint8_t *data_ptr) {
                             tmp_codeword += bitStream.get_a_bit();
                             tmp_codeword_len++;
                             if (tmp_codeword_len > 16) {
+                                header.status = 2;
                                 spdlog::error("huffman codeword should less than 16");
-                                exit(1);
+                                return 1;
+                                // exit(1);
                             }
                         }
                         for (int ac_count = 0; ac_count < 63;) {  // match 63 ac values
@@ -924,8 +946,10 @@ size_t JPEGDec::Scan_MCUs(uint8_t *data_ptr) {
                                 tmp_codeword += bitStream.get_a_bit();
                                 tmp_codeword_len++;
                                 if (tmp_codeword_len > 16) {
+                                    header.status = 2;
                                     spdlog::error("huffman codeword should less than 16");
-                                    exit(1);
+                                    return 1;
+                                    // exit(1);
                                 }
                             }
                         }

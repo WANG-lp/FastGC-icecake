@@ -196,6 +196,24 @@ void *onlineROI(void *jpeg_header_raw, int offset_x, int offset_y, int roi_width
         pixel_w_end = jpeg_header->width;
     }
 
+    if (offset_x == 0 && offset_y == 0 && pixel_h_end == jpeg_header->height && pixel_w_end == pixel_w_end) {
+        struct JPEG_HEADER *ret = static_cast<struct JPEG_HEADER *>(create_jpeg_header());
+        // copy constant parts
+        ret->dqt_table = jpeg_header->dqt_table;
+        ret->sof0 = jpeg_header->sof0;
+
+        ret->dht = jpeg_header->dht;
+        ret->sos_first_part = jpeg_header->sos_first_part;
+        ret->sos_second_part = jpeg_header->sos_second_part;
+        ret->blockpos = jpeg_header->blockpos;
+        ret->blockpos_compact = jpeg_header->blockpos_compact;
+        ret->blocks_num = jpeg_header->blocks_num;
+        ret->width = jpeg_header->width;
+        ret->height = jpeg_header->height;
+        ret->status = jpeg_header->status;
+        return ret;
+    }
+
     int mcu_h_end = (pixel_h_end + 7) / 8;
     int mcu_w_end = (pixel_w_end + 7) / 8;
 

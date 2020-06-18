@@ -220,7 +220,9 @@ class BitStream {
     uint8_t current_rst_marker = 0xD0;
 
     void forward_a_byte() {
-        assert(!done);
+        if (done)
+            return;
+        // assert(!done);
         cur_ptr = ptr;
         pos = 0;
         ptr++;

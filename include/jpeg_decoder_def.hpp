@@ -22,5 +22,5 @@ struct JPEG_HEADER {
     int width;
     int height;
 
-    uint8_t status;  // 0->new created, 1->with data;
+    uint8_t status = 0;  // 0->new created, 1->with data, 2->error;
 };

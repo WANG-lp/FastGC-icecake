@@ -2,8 +2,11 @@
 
 #include <algorithm>
 #include <fstream>
+#include <random>
 #include <thread>
 #include <vector>
+
+int MAX_PUT_NUM = 100;
 
 using std::string;
 using std::vector;
@@ -19,6 +22,9 @@ vector<size_t> transfered_data;
 string root_dir;
 
 vector<string> filenames;
+vector<size_t> random_idx;
+
+int mode = 0;
 
 int64_t get_wall_time() {
     struct timeval time;
@@ -32,20 +38,32 @@ int64_t get_wall_time() {
 void client_func(int tid) {
     jcache::JPEGCacheClient client(server_addr, server_port);
     string ret_buff;
-    for (size_t i = 0; i < REQNUM; i++) {
-        auto t1 = get_wall_time();
-        ret_buff = client.get_serialized_header_random_crop("/lwangay/test_7687.jpeg");
-        // ret_buff = client.get_serialized_raw_file("/lwangay/test_7687.jpeg");
-        // ret_buff = client.get_serialized_header_ROI("/lwangay/test_7687.jpeg", 0, 0, 224, 224);
+    vector<string> local_filenames = filenames;
 
+    size_t idx = tid * filenames.size();
+    for (size_t i = 0; i < REQNUM; i++) {
+        auto fname = filenames[random_idx[idx]];
+        // printf("get %s\n", fname.c_str());
+        auto t1 = get_wall_time();
+        if (mode == 0) {
+            ret_buff = client.get_serialized_header_random_crop(fname);
+        } else if (mode == 1) {
+            ret_buff = client.get_serialized_raw_file(fname);
+        } else if (mode == 2) {
+            ret_buff = client.get_serialized_header_ROI(fname, 0, 0, 224, 224);
+        }
         auto t2 = get_wall_time();
         transfered_data[tid] += ret_buff.size();
         rep_times[tid].push_back(t2 - t1);
+        idx++;
+        if (idx >= random_idx.size()) {
+            idx = 0;
+        }
     }
 }
 
 int main(int argc, char **argv) {
-    assert(argc == 7);
+    assert(argc == 10);
 
     server_addr = string(argv[1]);
     server_port = std::atol(argv[2]);
@@ -53,32 +71,74 @@ int main(int argc, char **argv) {
     root_dir = string(argv[4]);
     REQNUM = std::atoll(argv[5]);
     thread_num = std::atoll(argv[6]);
+    mode = std::atoi(argv[7]);
+    MAX_PUT_NUM = std::atoi(argv[8]);
+    string enable_write = argv[9];
 
     printf("server addr %s, port %d\n", server_addr.c_str(), server_port);
     printf("filelist %s\n", filelistname.c_str());
     printf("root dir %s\n", root_dir.c_str());
     printf("req num is %ld\n", REQNUM);
     printf("thread num is %ld\n", thread_num);
+    printf("mode %d\n", mode);
+    printf("put to server %d\n", MAX_PUT_NUM);
+
+    assert(mode == 0 || mode == 1 || mode == 2);
 
     rep_times.resize(thread_num);
     transfered_data.resize(thread_num, 0);
 
-    // read file list
-    {
-        std::ifstream infile(filelistname);
+    if (enable_write == "true") {
+        // read file list
+        {
+            int count = 0;
+            int fail = 0;
+            jcache::JPEGCacheClient client(server_addr, server_port);
+            std::ifstream infile(filelistname);
+            assert(infile.good());
+            std::string line;
+
+            std::ofstream ofile("list.txt", std::ios::trunc);
+
+            while (std::getline(infile, line)) {
+                if (line.size() > 0) {
+                    string fname = root_dir + "/" + line;
+                    // printf("puting %s\n", fname.c_str());
+                    auto ret = client.put(fname);
+                    if (ret == 0) {
+                        // printf("ok\n");
+                        filenames.push_back(fname);
+                        ofile << fname << std::endl;
+                        count++;
+                        if (count >= MAX_PUT_NUM) {
+                            break;
+                        }
+                    } else {
+                        fail++;
+                    }
+                }
+            }
+            printf("fail %d failes\n", fail);
+        }
+    } else {
+        std::ifstream infile("list.txt");
         assert(infile.good());
         std::string line;
         while (std::getline(infile, line)) {
             if (line.size() > 0) {
-                filenames.push_back(root_dir + "/" + line);
+                filenames.push_back(line);
             }
         }
     }
-    printf("total %d files\n", filenames.size());
+    printf("total %ld files\n", filenames.size());
+    for (int i = 0; i < filenames.size() * thread_num; i++) {
+        random_idx.push_back(i % filenames.size());
+    }
 
     {
-        jcache::JPEGCacheClient client(server_addr, server_port);
-        client.put("/lwangay/test_7687.jpeg");
+        std::random_device rd;
+        std::mt19937 g(rd());
+        std::shuffle(random_idx.begin(), random_idx.end(), g);
     }
 
     int64_t start_time = get_wall_time();
