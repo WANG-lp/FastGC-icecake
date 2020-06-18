@@ -1,6 +1,6 @@
 # gtest_discover_tests is stable in cmake-3.10.3
 cmake_minimum_required(VERSION 3.10.3)
-project(icecake LANGUAGES C CXX CUDA)
+project(icecake LANGUAGES C CXX)
 
 # Adds options to the compilation of source files
 set(CMAKE_CXX_STANDARD 14)
@@ -30,7 +30,7 @@ endif ()
 
 include_directories(3rd-deps/spdlog/include)
 include_directories(3rd-deps/parallel-hashmap)
-include_directories(3rd-deps/DALI)
+# include_directories(3rd-deps/DALI)
 include_directories(3rd-deps/pybind11/include)
 include_directories(3rd-deps/cereal/include)
 add_subdirectory(3rd-deps/pybind11)
