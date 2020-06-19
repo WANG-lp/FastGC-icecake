@@ -322,7 +322,7 @@ void JPEGDec::Parser() {
             default: {
                 off += 1;
                 header.status = 2;
-                spdlog::info("Unknown marker, offset: {}, byte: {:x}", off, c);
+                spdlog::warn("Unknown marker, offset: {}, byte: {:x}", off, c);
                 return;
             }
         }
