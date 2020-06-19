@@ -222,15 +222,26 @@ class FakeInputPipe(Pipeline):
 
 
 class JCacheCropIter(object):
-    def __init__(self, batch_size, device_id, num_gpus, crop=True):
+    def __init__(self, batch_size, device_id, num_gpus, crop=True, ori=False):
         self.batch_size = batch_size
-        self.files = ["/tmp/test_7687.jpeg"]
+        self.ori = ori
+        with open("/mnt/optane-ssd/lipeng/imagenet/image_ok_list.txt", "r") as f:
+            lines = f.readlines()
+        self.files = []
+        for l in lines:
+            self.files.append("/mnt/optane-ssd/lipeng/imagenet/"+l.strip())
         # whole data set size
         self.data_set_len = 1280000
         self.n = self.data_set_len
         self.jc = JC.JPEGCacheClient("127.0.0.1", 8090)
-        for f in self.files:
-            self.jc.put(f)
+        need_put = os.environ.get('PUT')
+        if need_put is not None:
+            print("put files")
+            for f in self.files:
+                self.jc.put(f)
+            print("put {} files ok".format(len(self.files)))
+        else:
+            print("no need to put file!!!!")
         self.crop = crop
 
     def __iter__(self):
@@ -246,16 +257,20 @@ class JCacheCropIter(object):
 
         for _ in range(self.batch_size):
             label = '0'
-            jpeg_filename = self.files[0]
+            jpeg_filename = self.files[self.i % len(self.files)]
             # buff = np.frombuffer(self.jc.get_serialized_header_random_crop(
             # jpeg_filename), dtype=np.uint8)
             buff = None
-            if self.crop:
-                buff = np.frombuffer(self.jc.get_serialized_header_ROI(
-                    jpeg_filename, 0, 0, 224, 224), dtype=np.uint8)
-            else:
-                buff = np.frombuffer(self.jc.get_serialized_header(
+            if self.ori:
+                buff = np.frombuffer(self.jc.get_raw_file(
                     jpeg_filename), dtype=np.uint8)
+            else:
+                if self.crop:
+                    buff = np.frombuffer(self.jc.get_serialized_header_ROI(
+                        jpeg_filename, 0, 0, 224, 224), dtype=np.uint8)
+                else:
+                    buff = np.frombuffer(self.jc.get_serialized_header(
+                        jpeg_filename), dtype=np.uint8)
 
             batch.append(buff)
             labels.append(np.array([label], dtype=np.uint8))
@@ -277,7 +292,7 @@ class JcacheInputPipe(Pipeline):
                                               device_id,
                                               seed=12 + device_id)
         self.external_data = JCacheCropIter(
-            batch_size, device_id, num_shards)
+            batch_size, device_id, num_shards, crop=True)
 
         self.iterator = iter(self.external_data)
 
@@ -330,7 +345,7 @@ class JcacheInputNoCropPipe(Pipeline):
                                                     device_id,
                                                     seed=12 + device_id)
         self.external_data = JCacheCropIter(
-            batch_size, device_id, num_shards, False)
+            batch_size, device_id, num_shards, crop=False)
 
         self.iterator = iter(self.external_data)
 
@@ -525,6 +540,71 @@ class ExtReaderNoROIPipe(Pipeline):
                                             std=[0.229 * 255, 0.224 * 255, 0.225 * 255])
         self.coin = ops.CoinFlip(probability=0.5)
         print('Ext noROI Reader!!!!!! DALI "{0}" variant'.format("gpu"))
+
+    def define_graph(self):
+        rng = self.coin()
+        self.jpegs = self.input()
+        self.labels = self.input_label()
+        images = self.decode(self.jpegs)
+        images = self.res(images)
+        output = self.cmnp(images.gpu(), mirror=rng)
+        return [output, self.labels]
+
+    def epoch_size(self, name=None):
+        return self.external_data.size
+
+    def iter_setup(self):
+        try:
+            (images, labels) = self.iterator.next()
+            self.feed_input(self.jpegs, images)
+            self.feed_input(self.labels, labels)
+        except StopIteration:
+            self.iterator = iter(self.external_data)
+            raise StopIteration
+
+
+class DIESELExtReaderPipe(Pipeline):
+    def __init__(self, batch_size, num_threads, device_id, data_dir, crop,
+                 shard_id, num_shards, dali_cpu=False):
+        super(DIESELExtReaderPipe, self).__init__(batch_size,
+                                                  num_threads,
+                                                  device_id,
+                                                  seed=12 + device_id)
+        self.external_data = JCacheCropIter(
+            batch_size, device_id, num_shards, crop=False, ori=True)
+
+        self.iterator = iter(self.external_data)
+
+        self.input = ops.ExternalSource()
+        self.input_label = ops.ExternalSource()
+        # let user decide which pipeline works him bets for RN version he runs
+        dali_device = 'cpu' if dali_cpu else 'gpu'
+        decoder_device = 'cpu' if dali_cpu else 'mixed'
+        # This padding sets the size of the internal nvJPEG buffers to be able to handle all images from full-sized ImageNet
+        # without additional reallocations
+        device_memory_padding = 211025920 if decoder_device == 'mixed' else 0
+        host_memory_padding = 140544512 if decoder_device == 'mixed' else 0
+        self.decode = ops.ImageDecoderRandomCrop(device=decoder_device, output_type=types.RGB,
+                                                 device_memory_padding=device_memory_padding,
+                                                 host_memory_padding=host_memory_padding,
+                                                 random_aspect_ratio=[
+                                                     0.8, 1.25],
+                                                 random_area=[0.1, 1.0],
+                                                 num_attempts=100)
+        self.res = ops.Resize(device=dali_device,
+                              resize_x=crop,
+                              resize_y=crop,
+                              interp_type=types.INTERP_TRIANGULAR)
+        self.cmnp = ops.CropMirrorNormalize(device="gpu",
+                                            output_dtype=types.FLOAT,
+                                            output_layout=types.NCHW,
+                                            crop=(crop, crop),
+                                            image_type=types.RGB,
+                                            mean=[0.485 * 255, 0.456 *
+                                                  255, 0.406 * 255],
+                                            std=[0.229 * 255, 0.224 * 255, 0.225 * 255])
+        self.coin = ops.CoinFlip(probability=0.5)
+        print('Ext Reader!!!!!! DALI "{0}" variant'.format("gpu"))
 
     def define_graph(self):
         rng = self.coin()
@@ -781,13 +861,13 @@ def main():
         val_size = 256
 
     pipe = ExtReaderPipe(batch_size=args.batch_size,
-                         num_threads=args.workers,
-                         device_id=args.local_rank,
-                         data_dir=traindir,
-                         crop=crop_size,
-                         dali_cpu=args.dali_cpu,
-                         shard_id=args.local_rank,
-                         num_shards=args.world_size)
+                               num_threads=args.workers,
+                               device_id=args.local_rank,
+                               data_dir=traindir,
+                               crop=crop_size,
+                               dali_cpu=args.dali_cpu,
+                               shard_id=args.local_rank,
+                               num_shards=args.world_size)
     pipe.build()
     print(pipe.epoch_size("Reader"))
     train_loader = DALIClassificationIterator(
@@ -881,26 +961,26 @@ def train(train_loader, model, criterion, optimizer, epoch):
         output = model(input)
         if args.prof >= 0:
             torch.cuda.nvtx.range_pop()
-        loss = criterion(output, target)
+        ##loss = criterion(output, target)
 
         # compute gradient and do SGD step
-        optimizer.zero_grad()
+        # optimizer.zero_grad()
 
-        if args.prof >= 0:
-            torch.cuda.nvtx.range_push("backward")
-        if args.opt_level is not None:
-            with amp.scale_loss(loss, optimizer) as scaled_loss:
-                scaled_loss.backward()
-        else:
-            loss.backward()
-        if args.prof >= 0:
-            torch.cuda.nvtx.range_pop()
+        # if args.prof >= 0:
+        #     torch.cuda.nvtx.range_push("backward")
+        # if args.opt_level is not None:
+        #     with amp.scale_loss(loss, optimizer) as scaled_loss:
+        #         scaled_loss.backward()
+        # else:
+        #     loss.backward()
+        # if args.prof >= 0:
+        #     torch.cuda.nvtx.range_pop()
 
-        if args.prof >= 0:
-            torch.cuda.nvtx.range_push("optimizer.step()")
-        optimizer.step()
-        if args.prof >= 0:
-            torch.cuda.nvtx.range_pop()
+        # if args.prof >= 0:
+        #     torch.cuda.nvtx.range_push("optimizer.step()")
+        # optimizer.step()
+        # if args.prof >= 0:
+        #     torch.cuda.nvtx.range_pop()
 
         torch.cuda.synchronize()
         batch_time.update(time.time() - end)
@@ -915,15 +995,15 @@ def train(train_loader, model, criterion, optimizer, epoch):
             prec1, prec5 = accuracy(output.data, target, topk=(1, 5))
 
             # Average loss and accuracy across processes for logging
-            if args.distributed:
-                reduced_loss = reduce_tensor(loss.data)
-                prec1 = reduce_tensor(prec1)
-                prec5 = reduce_tensor(prec5)
-            else:
-                reduced_loss = loss.data
+            # if args.distributed:
+            #     reduced_loss = reduce_tensor(loss.data)
+            #     prec1 = reduce_tensor(prec1)
+            #     prec5 = reduce_tensor(prec5)
+            # else:
+            #     reduced_loss = loss.data
 
             # to_python_float incurs a host<->device sync
-            losses.update(to_python_float(reduced_loss), input.size(0))
+            # losses.update(to_python_float(reduced_loss), input.size(0))
             top1.update(to_python_float(prec1), input.size(0))
             top5.update(to_python_float(prec5), input.size(0))
 
@@ -940,8 +1020,8 @@ def train(train_loader, model, criterion, optimizer, epoch):
                           args.world_size*args.batch_size/batch_time.avg,
                           batch_time=batch_time, data_time=data_time,
                           loss=losses, top1=top1, top5=top5))
-        if i == 500:
-            exit(0)
+        # if i == 500:
+        #     exit(0)
 
         # Pop range "Body of iteration {}".format(i)
         if args.prof >= 0:
