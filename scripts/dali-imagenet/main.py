@@ -860,14 +860,14 @@ def main():
         crop_size = 224
         val_size = 256
 
-    pipe = ExtReaderPipe(batch_size=args.batch_size,
-                               num_threads=args.workers,
-                               device_id=args.local_rank,
-                               data_dir=traindir,
-                               crop=crop_size,
-                               dali_cpu=args.dali_cpu,
-                               shard_id=args.local_rank,
-                               num_shards=args.world_size)
+    pipe = DIESELExtReaderPipe(batch_size=args.batch_size,
+                         num_threads=args.workers,
+                         device_id=args.local_rank,
+                         data_dir=traindir,
+                         crop=crop_size,
+                         dali_cpu=args.dali_cpu,
+                         shard_id=args.local_rank,
+                         num_shards=args.world_size)
     pipe.build()
     print(pipe.epoch_size("Reader"))
     train_loader = DALIClassificationIterator(
@@ -961,26 +961,26 @@ def train(train_loader, model, criterion, optimizer, epoch):
         output = model(input)
         if args.prof >= 0:
             torch.cuda.nvtx.range_pop()
-        ##loss = criterion(output, target)
+        loss = criterion(output, target)
 
         # compute gradient and do SGD step
-        # optimizer.zero_grad()
+        optimizer.zero_grad()
 
-        # if args.prof >= 0:
-        #     torch.cuda.nvtx.range_push("backward")
-        # if args.opt_level is not None:
-        #     with amp.scale_loss(loss, optimizer) as scaled_loss:
-        #         scaled_loss.backward()
-        # else:
-        #     loss.backward()
-        # if args.prof >= 0:
-        #     torch.cuda.nvtx.range_pop()
+        if args.prof >= 0:
+            torch.cuda.nvtx.range_push("backward")
+        if args.opt_level is not None:
+            with amp.scale_loss(loss, optimizer) as scaled_loss:
+                scaled_loss.backward()
+        else:
+            loss.backward()
+        if args.prof >= 0:
+            torch.cuda.nvtx.range_pop()
 
-        # if args.prof >= 0:
-        #     torch.cuda.nvtx.range_push("optimizer.step()")
-        # optimizer.step()
-        # if args.prof >= 0:
-        #     torch.cuda.nvtx.range_pop()
+        if args.prof >= 0:
+            torch.cuda.nvtx.range_push("optimizer.step()")
+        optimizer.step()
+        if args.prof >= 0:
+            torch.cuda.nvtx.range_pop()
 
         torch.cuda.synchronize()
         batch_time.update(time.time() - end)
@@ -995,15 +995,15 @@ def train(train_loader, model, criterion, optimizer, epoch):
             prec1, prec5 = accuracy(output.data, target, topk=(1, 5))
 
             # Average loss and accuracy across processes for logging
-            # if args.distributed:
-            #     reduced_loss = reduce_tensor(loss.data)
-            #     prec1 = reduce_tensor(prec1)
-            #     prec5 = reduce_tensor(prec5)
-            # else:
-            #     reduced_loss = loss.data
+            if args.distributed:
+                reduced_loss = reduce_tensor(loss.data)
+                prec1 = reduce_tensor(prec1)
+                prec5 = reduce_tensor(prec5)
+            else:
+                reduced_loss = loss.data
 
             # to_python_float incurs a host<->device sync
-            # losses.update(to_python_float(reduced_loss), input.size(0))
+            losses.update(to_python_float(reduced_loss), input.size(0))
             top1.update(to_python_float(prec1), input.size(0))
             top5.update(to_python_float(prec5), input.size(0))
 
