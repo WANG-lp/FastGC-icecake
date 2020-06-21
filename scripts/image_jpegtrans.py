@@ -37,6 +37,8 @@ def get_jpeg_meta(fnames, fout):
                 old_len = get_file_size(BASE_DIR+fname)
                 of.write("{}: {} -> {}".format(fname, old_len, new_len))
                 of.write("\n")
+                with open(BASE_DIR+fname, "wb") as f:
+                    f.write(result.stdout)
                 # break
                 # for l in result_str:
                 #     ls = l.strip(" ").strip("\t")
@@ -64,8 +66,31 @@ def show_reduced(fname):
     print("old ave: {}".format(old_size/len(lines)))
     print("new ave: {}".format(new_size/len(lines)))
 
+def copyfiles(flist):
+    from shutil import copyfile
 
+    with open(flist, "r") as fl:
+        fnames = fl.readlines()
+    for f in fnames:
+        f = f.strip()
+        os.makedirs(os.path.dirname(BASE_DIR+"cropped/"+f), exist_ok=True)
+        copyfile(BASE_DIR+f, BASE_DIR+"cropped/"+f)
+
+def crop(BASEDIR, flist):
+    with open(flist, "r") as fl:
+        fnames = fl.readlines()
+    for f in fnames:
+        f = f.strip()
+        result = subprocess.run(
+                        ['/home/lwangay/anaconda3/bin/jpegtran', '-crop', '224x224+0+0', BASEDIR+f], stdout=subprocess.PIPE)
+        new_len = len(result.stdout)
+        with open(BASEDIR+f, "wb") as f:
+            f.write(result.stdout)
+        
 if __name__ == "__main__":
     # flist = get_filenames("/mnt/optane-ssd/lipeng/imagenet/train.txt")
     # get_jpeg_meta(flist, "finfo.txt")
-    show_reduced("./file_crop.txt")
+    # show_reduced("./file_crop.txt")
+    # copyfiles("/mnt/optane-ssd/lipeng/imagenet/image_ok_list.txt")
+
+    crop("/mnt/optane-ssd/lipeng/imagenet/cropped/","/mnt/optane-ssd/lipeng/imagenet/image_ok_list.txt")

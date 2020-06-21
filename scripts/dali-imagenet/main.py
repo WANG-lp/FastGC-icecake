@@ -228,8 +228,13 @@ class JCacheCropIter(object):
         with open("/mnt/optane-ssd/lipeng/imagenet/image_ok_list.txt", "r") as f:
             lines = f.readlines()
         self.files = []
+        BASEDIR = os.getenv("BASEDIR")
+        if BASEDIR is None:
+            raise Exception("cannot found BASEDIR env")
+        if BASEDIR[-1]!= "/":
+            BASEDIR+="/"
         for l in lines:
-            self.files.append("/mnt/optane-ssd/lipeng/imagenet/"+l.strip())
+            self.files.append(BASEDIR+l.strip())
         # whole data set size
         self.data_set_len = 1280000
         self.n = self.data_set_len
@@ -860,7 +865,12 @@ def main():
         crop_size = 224
         val_size = 256
 
-    pipe = DIESELExtReaderPipe(batch_size=args.batch_size,
+    # PIPE_CLASS = [JcacheInputPipe, DIESELExtReaderPipe, ExtReaderPipe]
+
+    PIPE_CLASS = [DIESELExtReaderPipe, DIESELExtReaderPipe, ExtReaderPipe]
+    class_id = int(os.getenv("PIPE"))
+    print("pipe class id: {}!!!!".format(class_id))
+    pipe = PIPE_CLASS[class_id](batch_size=args.batch_size,
                          num_threads=args.workers,
                          device_id=args.local_rank,
                          data_dir=traindir,
