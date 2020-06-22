@@ -865,9 +865,9 @@ def main():
         crop_size = 224
         val_size = 256
 
-    # PIPE_CLASS = [JcacheInputPipe, DIESELExtReaderPipe, ExtReaderPipe]
+    PIPE_CLASS = [JcacheInputPipe, DIESELExtReaderPipe, ExtReaderPipe]
 
-    PIPE_CLASS = [DIESELExtReaderPipe, DIESELExtReaderPipe, ExtReaderPipe]
+    # PIPE_CLASS = [DIESELExtReaderPipe, DIESELExtReaderPipe, ExtReaderPipe]
     class_id = int(os.getenv("PIPE"))
     print("pipe class id: {}!!!!".format(class_id))
     pipe = PIPE_CLASS[class_id](batch_size=args.batch_size,
