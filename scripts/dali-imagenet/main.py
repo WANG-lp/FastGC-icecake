@@ -20,6 +20,7 @@ from random import shuffle
 import numpy as np
 
 
+
 try:
     from nvidia.dali.plugin.pytorch import DALIClassificationIterator
     from nvidia.dali.pipeline import Pipeline
