@@ -119,7 +119,7 @@ void decode_batched(const vector<vector<uint8_t>> &data, int num_threads, int ma
                  total_decoded / (milliseconds / 1000.0));
     copy_out(out_images[0], widths[0][0], heights[0][0]);
 }
-void decode_decoupled(vector<uint8_t> data) {
+void decode_decoupled(vector<uint8_t> data, int batch_size) {
     spdlog::info("decode_decoupled:");
 
     nvjpegJpegDecoder_t decoder_t;
@@ -164,30 +164,34 @@ void decode_decoupled(vector<uint8_t> data) {
     cudaEventCreate(&stop);
 
     cudaEventRecord(start, params.stream);
-    checkCudaErrors(
-        nvjpegDecodeJpegHost(params.nvjpeg_handle, decoder_t, params.nvjpeg_state, decode_params, jpeg_stream));
-    cudaEventRecord(stop, params.stream);
-    cudaEventSynchronize(stop);
-    cudaEventElapsedTime(&milliseconds, start, stop);
-    spdlog::info("decodeJpegHost time {}ms", milliseconds);
+    for (int i = 0; i < batch_size; i++) {
+        checkCudaErrors(
+            nvjpegDecodeJpegHost(params.nvjpeg_handle, decoder_t, params.nvjpeg_state, decode_params, jpeg_stream));
+        // cudaEventRecord(stop, params.stream);
+        // cudaEventSynchronize(stop);
+        // cudaEventElapsedTime(&milliseconds, start, stop);
+        // spdlog::info("decodeJpegHost time {}ms", milliseconds);
 
-    cudaEventRecord(start, params.stream);
-    checkCudaErrors(nvjpegDecodeJpegTransferToDevice(params.nvjpeg_handle, decoder_t, params.nvjpeg_state, jpeg_stream,
-                                                     params.stream));
-    cudaEventRecord(stop, params.stream);
-    cudaEventSynchronize(stop);
-    cudaEventElapsedTime(&milliseconds, start, stop);
-    spdlog::info("transfer time {}ms", milliseconds);
+        // cudaEventRecord(start, params.stream);
+        checkCudaErrors(nvjpegDecodeJpegTransferToDevice(params.nvjpeg_handle, decoder_t, params.nvjpeg_state,
+                                                         jpeg_stream, params.stream));
+        // cudaEventRecord(stop, params.stream);
+        // cudaEventSynchronize(stop);
+        // cudaEventElapsedTime(&milliseconds, start, stop);
+        // spdlog::info("transfer time {}ms", milliseconds);
 
-    cudaEventRecord(start, params.stream);
-    checkCudaErrors(
-        nvjpegDecodeJpegDevice(params.nvjpeg_handle, decoder_t, params.nvjpeg_state, &out_img_t, params.stream));
+        // cudaEventRecord(start, params.stream);
+        checkCudaErrors(
+            nvjpegDecodeJpegDevice(params.nvjpeg_handle, decoder_t, params.nvjpeg_state, &out_img_t, params.stream));
+    }
     cudaEventRecord(stop, params.stream);
     cudaEventSynchronize(stop);
     cudaEventElapsedTime(&milliseconds, start, stop);
     spdlog::info("decodeJpegDevice time {}ms", milliseconds);
+    spdlog::info("speed: {} images/sec", batch_size / (milliseconds / 1000.0));
     checkCudaErrors(cudaStreamSynchronize(params.stream));
     copy_out(out_img_t, widths[0], heights[0]);
+    exit(0);
 }
 
 void decode_image(vector<uint8_t> data) {
@@ -259,7 +263,6 @@ int main(int argc, char **argv) {
     image_data.resize(fsize);
     ifs.read((char *) image_data.data(), fsize);
 
-    // decode_decoupled(image_data);
     assert(argc >= 5);
 
     int thread_num = atoi(argv[2]);
@@ -268,6 +271,8 @@ int main(int argc, char **argv) {
     spdlog::info("thread num: {}", thread_num);
     spdlog::info("max iter: {}", max_iter);
     spdlog::info("batch size: {}", batch_size);
+
+    // decode_decoupled(image_data, batch_size);
 
     vector<vector<uint8_t>> data_batched;
     data_batched.resize(batch_size);

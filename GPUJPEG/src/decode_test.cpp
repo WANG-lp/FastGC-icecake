@@ -205,6 +205,25 @@ int RPC_test(const string& fname, uint8_t* image, size_t len) {
     return 0;
 }
 
+int test_one_image(const char* input, gpujpeg_decoder* decoder, uint8_t* image, int image_size, void* jpeg_header) {
+    // Prepare decoder output buffer
+    struct gpujpeg_decoder_output decoder_output;
+
+    gpujpeg_decoder_output_set_default(&decoder_output);
+
+    if ((rc = gpujpeg_decoder_decode_phase1(decoder, image, image_size, jpeg_header)) != 0) {
+        fprintf(stderr, "Failed to decode image [%s]!\n", input);
+        return -1;
+    }
+
+    if ((rc = gpujpeg_decoder_decode_phase2(decoder, &decoder_output)) != 0) {
+        fprintf(stderr, "Failed to decode image [%s]!\n", input);
+        return -1;
+    }
+    exit(0);
+    return 0;
+}
+
 int main(int argc, char** argv) {
     if (gpujpeg_init_device(0, GPUJPEG_VERBOSE) != 0)
         return -1;
@@ -245,15 +264,18 @@ int main(int argc, char** argv) {
     printf("\n");
     assert(jc.putJPEG(input));
     void* jpeg_header_raw = jc.getHeader(input);
-    void* jpeg_header_croped = jc.getHeaderwithCrop(input, 0, 0, 320, 320);
-    void* jpeg_header_croped2 = jc.getHeaderwithCrop(input, 0, 0, 224, 224);
-
+    assert(jpeg_header_raw != nullptr);
+    // void* jpeg_header_croped = jc.getHeaderwithCrop(input, 0, 0, 320, 320);
+    // void* jpeg_header_croped2 = jc.getHeaderwithCrop(input, 0, 0, 224, 224);
     restore_block_offset_from_compact(jpeg_header_raw);
-    restore_block_offset_from_compact(jpeg_header_croped);
-    restore_block_offset_from_compact(jpeg_header_croped2);
-    warmup(input, decoder1, image, image_size, jpeg_header_croped2, 1);
-    warmup(input, decoder1, image, image_size, jpeg_header_croped, 1);
-    warmup(input, decoder1, image, image_size, jpeg_header_croped2, 1);
+    // restore_block_offset_from_compact(jpeg_header_croped);
+    // restore_block_offset_from_compact(jpeg_header_croped2);
+
+    // test_one_image(input, decoder1, image, image_size, jpeg_header_raw);
+
+    warmup(input, decoder1, image, image_size, jpeg_header_raw, 1);
+    // warmup(input, decoder1, image, image_size, jpeg_header_croped, 1);
+    // warmup(input, decoder1, image, image_size, jpeg_header_croped2, 1);
     // // return 0;
     // if (get_jpeg_header_status(jpeg_header_croped) == 1) {
     //     printf("has header\n");
@@ -277,7 +299,9 @@ int main(int argc, char** argv) {
 
     // warmup(input, decoder1, image, image_size, jpeg_header_croped, 1000);
 
-    decode(image_data, thread_num, max_iter, jpeg_header_croped2);
+    decode(image_data, thread_num, max_iter, nullptr);
+
+    decode(image_data, thread_num, max_iter, jpeg_header_raw);
 
     // Destroy image
     gpujpeg_image_destroy(image);

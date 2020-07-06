@@ -36,6 +36,10 @@
 #include <stdint.h>
 #include "../include/jpeg_decoder_export.h"
 
+#include <sys/time.h>
+#include <time.h>
+int64_t get_wall_time();
+
 #ifdef __cplusplus
 extern "C" {
 #endif

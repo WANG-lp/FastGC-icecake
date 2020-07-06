@@ -1566,4 +1566,13 @@ int gpujpeg_pixel_format_is_subsampled(enum gpujpeg_pixel_format pixel_format) {
     return -1;
 }
 
+int64_t get_wall_time() {
+    struct timeval time;
+    if (gettimeofday(&time, NULL)) {
+        //  Handle error
+        return 0;
+    }
+    return time.tv_sec * 1000000 + time.tv_usec;
+}
+
 /* vi: set expandtab sw=4 : */

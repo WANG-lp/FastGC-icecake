@@ -21,12 +21,17 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 option(DEBUG_MODE "build in debug mode" OFF)
 option(BUILD_TEST "build tests" OFF)
 option(BUILD_DALI_PLUGIN "build dali plugin" OFF)
+option(BUILD_TIMER "print timer" OFF)
 
 if (DEBUG_MODE)
     add_compile_options(-g)
 else ()
     add_compile_options(-O2)
 endif ()
+
+if (BUILD_TIMER)
+    add_compile_options(-DTIMER)
+endif()
 
 include_directories(3rd-deps/spdlog/include)
 include_directories(3rd-deps/parallel-hashmap)
