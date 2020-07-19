@@ -117,7 +117,7 @@ void decode_batched(const vector<vector<uint8_t>> &data, int num_threads, int ma
     size_t total_decoded = data.size() * max_iter;
     spdlog::info("Decoded {} images, Decoding speed: {} images/second", total_decoded,
                  total_decoded / (milliseconds / 1000.0));
-    copy_out(out_images[0], widths[0][0], heights[0][0]);
+    // copy_out(out_images[0], widths[0][0], heights[0][0]);
 }
 void decode_decoupled(vector<uint8_t> data, int batch_size) {
     spdlog::info("decode_decoupled:");
@@ -173,16 +173,16 @@ void decode_decoupled(vector<uint8_t> data, int batch_size) {
         // spdlog::info("decodeJpegHost time {}ms", milliseconds);
 
         // cudaEventRecord(start, params.stream);
-        checkCudaErrors(nvjpegDecodeJpegTransferToDevice(params.nvjpeg_handle, decoder_t, params.nvjpeg_state,
-                                                         jpeg_stream, params.stream));
+        // checkCudaErrors(nvjpegDecodeJpegTransferToDevice(params.nvjpeg_handle, decoder_t, params.nvjpeg_state,
+        //  jpeg_stream, params.stream));
         // cudaEventRecord(stop, params.stream);
         // cudaEventSynchronize(stop);
         // cudaEventElapsedTime(&milliseconds, start, stop);
         // spdlog::info("transfer time {}ms", milliseconds);
 
         // cudaEventRecord(start, params.stream);
-        checkCudaErrors(
-            nvjpegDecodeJpegDevice(params.nvjpeg_handle, decoder_t, params.nvjpeg_state, &out_img_t, params.stream));
+        // checkCudaErrors(
+        // nvjpegDecodeJpegDevice(params.nvjpeg_handle, decoder_t, params.nvjpeg_state, &out_img_t, params.stream));
     }
     cudaEventRecord(stop, params.stream);
     cudaEventSynchronize(stop);
@@ -272,7 +272,7 @@ int main(int argc, char **argv) {
     spdlog::info("max iter: {}", max_iter);
     spdlog::info("batch size: {}", batch_size);
 
-    // decode_decoupled(image_data, batch_size);
+    decode_decoupled(image_data, batch_size);
 
     vector<vector<uint8_t>> data_batched;
     data_batched.resize(batch_size);

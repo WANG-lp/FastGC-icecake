@@ -50,8 +50,9 @@ class DaliIcecake : public dali::Operator<dali::CPUBackend> {
 class DaliIcecakeMixed : public dali::Operator<dali::MixedBackend> {
    public:
     inline explicit DaliIcecakeMixed(const ::dali::OpSpec &spec) : ::dali::Operator<dali::MixedBackend>(spec) {
-        decoder = std::shared_ptr<jpeg_dec::GPUDecoder>(new jpeg_dec::GPUDecoder(batch_size_, "/tmp/test_7687.jpeg"));
-        // decoder = std::shared_ptr<jpeg_dec::GPUDecoder>(new jpeg_dec::GPUDecoder(batch_size_));
+        // decoder = std::shared_ptr<jpeg_dec::GPUDecoder>(new jpeg_dec::GPUDecoder(batch_size_,
+        // "/tmp/test_7687.jpeg"));
+        decoder = std::shared_ptr<jpeg_dec::GPUDecoder>(new jpeg_dec::GPUDecoder(batch_size_));
     }
 
     virtual inline ~DaliIcecakeMixed() {}

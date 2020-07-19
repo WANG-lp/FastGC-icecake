@@ -117,8 +117,9 @@ class ExternalFakeInputIter(object):
         if self.images_dir[-1] != '/':
             self.images_dir += '/'
         self.batch_size = batch_size
-        with open("/mnt/optane-ssd/lipeng/imagenet/train_label.txt", 'r') as f:
-            self.files = [line.rstrip() for line in f if line is not '']
+        # with open("/mnt/optane-ssd/lipeng/imagenet/train_label.txt", 'r') as f:
+            # self.files = [line.rstrip() for line in f if line is not '']
+        self.files = ["/tmp/test_7687.jpeg 0"] * 1280000
         # whole data set size
         self.data_set_len = len(self.files)
         # based on the device_id and total number of GPUs - world size
@@ -129,7 +130,7 @@ class ExternalFakeInputIter(object):
         self.file_content = []
         for idx in range(batch_size):
             jpeg_filename, label = self.files[idx].split(' ')
-            f = open(self.images_dir + jpeg_filename, 'rb')
+            f = open(jpeg_filename, 'rb')
             self.file_content.append(f.read())
             f.close()
 
@@ -147,6 +148,7 @@ class ExternalFakeInputIter(object):
         for idx in range(self.batch_size):
             jpeg_filename, label = self.files[idx].split(' ')
             batch.append(np.frombuffer(self.file_content[idx], dtype=np.uint8))
+            label = self.i % 10000
             labels.append(np.array([label], dtype=np.uint8))
             self.i = (self.i + 1) % self.n
         return (batch, labels)
@@ -235,8 +237,10 @@ class JCacheCropIter(object):
             raise Exception("cannot found BASEDIR env")
         if BASEDIR[-1]!= "/":
             BASEDIR+="/"
-        for l in lines:
-            self.files.append(BASEDIR+l.strip())
+        # for l in lines:
+            # self.files.append(BASEDIR+l.strip())
+        self.files = ["/tmp/test_7687.jpeg"] * 1000
+
         # whole data set size
         self.data_set_len = 1280000
         self.n = self.data_set_len
@@ -299,7 +303,7 @@ class JcacheInputPipe(Pipeline):
                                               device_id,
                                               seed=12 + device_id)
         self.external_data = JCacheCropIter(
-            batch_size, device_id, num_shards, crop=True)
+            batch_size, device_id, num_shards, crop=False)
 
         self.iterator = iter(self.external_data)
 
@@ -867,7 +871,7 @@ def main():
         crop_size = 224
         val_size = 256
 
-    PIPE_CLASS = [JcacheInputPipe, DIESELExtReaderPipe, ExtReaderPipe]
+    PIPE_CLASS = [JcacheInputPipe, DIESELExtReaderPipe, ExtReaderPipe, FakeInputPipe]
 
     # PIPE_CLASS = [DIESELExtReaderPipe, DIESELExtReaderPipe, ExtReaderPipe]
     class_id = int(os.getenv("PIPE"))
