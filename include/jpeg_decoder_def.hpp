@@ -28,7 +28,9 @@ struct JPEG_HEADER {
 
 struct JPEG_FAST_BINARY {
     vector<vector<uint16_t>> dqt_table;
-    vector<gpujpeg_table_huffman_decoder> dht_table;
+    vector<gpujpeg_table_huffman_decoder> dht_table_dc;
+    vector<gpujpeg_table_huffman_decoder> dht_table_ac;
+
     int height, weidth;
     uint8_t comp_count;
     vector<uint8_t> sampling_factor_h;
@@ -38,9 +40,13 @@ struct JPEG_FAST_BINARY {
     vector<uint32_t> blockpos_compact;
     vector<block_offset_s> blockpos;
 
-    vector<vector<uint8_t>> comp_dc_table_id;
-    vector<vector<uint8_t>> comp_ac_table_id;
+    vector<uint8_t> comp_dc_table_id;
+    vector<uint8_t> comp_ac_table_id;
+    vector<uint8_t> quant_map;
+    vector<uint8_t> comp_id;
 
     int scan_segment_index;
     int scan_segment_count;
+
+    vector<uint8_t> compressed_data;
 };

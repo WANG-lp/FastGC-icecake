@@ -888,6 +888,35 @@ int gpujpeg_reader_read_sos(struct gpujpeg_decoder* decoder, uint8_t** image, ui
 
     return 0;
 }
+void* gimg_reader_generate_fast_binary(struct gpujpeg_decoder* decoder, void* jpeg_header) {
+    printf("generate\n");
+    if (gpujpeg_reader_read_image_with_header(decoder, jpeg_header) != 0) {
+        printf("parse image with jpeg_header fail\n");
+        return NULL;
+    }
+    printf("generate done\n");
+
+    void* fast_bin = create_jpeg_fast_binary();
+    set_jpeg_fast_binary(jpeg_header, fast_bin, decoder);
+    return fast_bin;
+}
+
+int gimg_reader_read_image_with_fast_binary(struct gpujpeg_decoder* decoder, void* jpeg_fast_bin) {
+
+    printf("before get\n");
+
+    get_from_jpeg_fast_binary(jpeg_fast_bin, decoder);
+    printf("get done\n");
+
+    if (decoder->reader->comp_count == 0) {
+        // Init decoder
+        if (gpujpeg_decoder_init(decoder, &decoder->reader->param, &decoder->reader->param_image) != 0) {
+            return -1;
+        }
+    }
+    printf("read done\n");
+    return 0;
+}
 
 int gpujpeg_reader_read_image_with_header(struct gpujpeg_decoder* decoder, void* jpeg_header) {
     assert(jpeg_header != NULL && get_jpeg_header_status(jpeg_header) == 1);
@@ -929,6 +958,7 @@ int gpujpeg_reader_read_image_with_header(struct gpujpeg_decoder* decoder, void*
         printf("read_sof0 error\n");
         return -1;
     }
+    printf("with header comp: %d\n", decoder->reader->param_image.comp_count);
     // printf("comp_id: %d, %d, %d, %d\n", decoder->comp_id[0], decoder->comp_id[1], decoder->comp_id[2],
     //        decoder->comp_id[3]);
     // printf("status %d\n", get_jpeg_header_status(jpeg_header));

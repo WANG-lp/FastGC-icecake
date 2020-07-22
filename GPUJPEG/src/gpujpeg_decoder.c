@@ -158,7 +158,7 @@ GPUJPEG_API struct gpujpeg_decoder* gpujpeg_decoder_create_with_max_image_size(c
 
     // TODO: replace init with a dummy param_image
     int rc;
-    rc = gpujpeg_decoder_decode_phase1(decoder, image_data, image_data_len, jpeg_header);
+    rc = gpujpeg_decoder_decode_phase1(decoder, image_data, image_data_len, jpeg_header, NULL);
     if (rc) {
         gpujpeg_decoder_destroy(decoder);
         return NULL;
@@ -247,40 +247,52 @@ int gpujpeg_decoder_init(struct gpujpeg_decoder* decoder, struct gpujpeg_paramet
     return 0;
 }
 
-int gpujpeg_decoder_decode_phase1(struct gpujpeg_decoder* decoder, uint8_t* image, int image_size, void* jpeg_header) {
+int gpujpeg_decoder_decode_phase1(struct gpujpeg_decoder* decoder, uint8_t* image, int image_size, void* jpeg_header,
+                                  void* fast_bin) {
     // Get coder
     struct gpujpeg_coder* coder = &decoder->coder;
     int rc;
     int unsupp_gpu_huffman_params = 0;
 
-    assert(jpeg_header != NULL || (image != NULL && image_size > 0));
+    assert(jpeg_header != NULL || (image != NULL && image_size > 0) || fast_bin != NULL);
 
-    // Read JPEG image data
-    if (jpeg_header) {
+// Read JPEG image data
 #ifdef TIMER
-        int64_t t1 = get_wall_time();
+    int64_t t1 = get_wall_time();
 #endif
+    if (fast_bin) {
+        if (0 != (rc = gimg_reader_read_image_with_fast_binary(decoder, fast_bin))) {
+            fprintf(stderr, "[GPUJPEG] [Error] Decoder failed when decoding image data!\n");
+            return rc;
+        }
+
+    } else if (jpeg_header) {
+
         if (0 != (rc = gpujpeg_reader_read_image_with_header(decoder, jpeg_header))) {
             fprintf(stderr, "[GPUJPEG] [Error] Decoder failed when decoding image data!\n");
             return rc;
         }
-#ifdef TIMER
-        int64_t t2 = get_wall_time();
-        printf("read with header: %lf ms\n", (t2 - t1) * 1.0 / 1000);
-#endif
+
     } else {
-#ifdef TIMER
-        int64_t t1 = get_wall_time();
-#endif
+
         if (0 != (rc = gpujpeg_reader_read_image(decoder, image, image_size))) {
             fprintf(stderr, "[GPUJPEG] [Error] Decoder failed when decoding image data!\n");
             return rc;
         }
-#ifdef TIMER
-        int64_t t2 = get_wall_time();
-        printf("read without header: %lf ms\n", (t2 - t1) * 1.0 / 1000);
-#endif
     }
+#ifdef TIMER
+    int64_t t2 = get_wall_time();
+    if (fast_bin) {
+        printf("read with fast_bin: %lf ms\n", (t2 - t1) * 1.0 / 1000);
+
+    } else if (jpeg_header) {
+        printf("read with jpeg_header: %lf ms\n", (t2 - t1) * 1.0 / 1000);
+
+    } else {
+        printf("read: %lf ms\n", (t2 - t1) * 1.0 / 1000);
+    }
+#endif
+
     assert(decoder->reader->param_image.pixel_format == GPUJPEG_444_U8_P012);
     return 0;
 }

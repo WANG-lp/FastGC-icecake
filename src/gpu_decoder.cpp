@@ -45,7 +45,7 @@ int GPUDecoder::do_decode(void* jpeg_header, uint8_t* out_ptr) {
     decoder_output.data = out_ptr;
     int rc = 0;
 
-    if ((rc = gpujpeg_decoder_decode_phase1(decoders[which_decoder], nullptr, 0, jpeg_header)) != 0) {
+    if ((rc = gpujpeg_decoder_decode_phase1(decoders[which_decoder], nullptr, 0, jpeg_header, nullptr)) != 0) {
         fprintf(stderr, "Failed to decode image !\n");
         return rc;
     }
@@ -60,7 +60,7 @@ int GPUDecoder::do_decode(void* jpeg_header, uint8_t* out_ptr) {
 
 int GPUDecoder::do_decode_phase1(size_t which_decode, void* jpeg_header) {
     int rc = 0;
-    if ((rc = gpujpeg_decoder_decode_phase1(decoders[which_decode], nullptr, 0, jpeg_header)) != 0) {
+    if ((rc = gpujpeg_decoder_decode_phase1(decoders[which_decode], nullptr, 0, jpeg_header, nullptr)) != 0) {
         fprintf(stderr, "Failed to decode image !\n");
         return rc;
     }

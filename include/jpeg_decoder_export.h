@@ -49,6 +49,9 @@ uint8_t* get_sos_2nd(void* jpeg_header_raw, int* length);
 struct block_offset_s* get_block_offsets(void* jpeg_header_raw, int* length);
 uint8_t get_jpeg_header_status(void* jpeg_header_raw);
 
+void* create_jpeg_fast_binary();
+void set_jpeg_fast_binary(void* jpeg_header_raw, void* fast_binary, void* dec);
+void get_from_jpeg_fast_binary(void* fast_binary, void* decoder);
 #ifdef __cplusplus
 }
 #endif

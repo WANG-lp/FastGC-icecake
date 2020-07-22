@@ -49,7 +49,8 @@ void decode(vector<vector<uint8_t>> image_data, int num_thread, int max_iter, vo
         decoder_outputs[i].type = GPUJPEG_DECODER_OUTPUT_CUDA_BUFFER;
         gpujpeg_decoder_set_output_format(decoders[i], GPUJPEG_RGB, GPUJPEG_444_U8_P012);
 
-        rc = gpujpeg_decoder_decode_phase1(decoders[i], image_data[i].data(), image_data[i].size(), jpeg_header);
+        rc = gpujpeg_decoder_decode_phase1(decoders[i], image_data[i].data(), image_data[i].size(), jpeg_header,
+                                           nullptr);
         assert(rc == 0);
         // Decode image
         rc = gpujpeg_decoder_decode_phase2(decoders[i], &decoder_outputs[i]);
@@ -68,10 +69,11 @@ void decode(vector<vector<uint8_t>> image_data, int num_thread, int max_iter, vo
         for (int i = 0; i < image_data.size(); i++) {
             // void* jpeg_header = decoders[i % num_thread]->reader->jpeg_header_raw;
             if (jpeg_header && get_jpeg_header_status(jpeg_header) == 1) {
-                rc =
-                    gpujpeg_decoder_decode_phase1(decoders[i], image_data[i].data(), image_data[i].size(), jpeg_header);
+                rc = gpujpeg_decoder_decode_phase1(decoders[i], image_data[i].data(), image_data[i].size(), jpeg_header,
+                                                   nullptr);
             } else {
-                rc = gpujpeg_decoder_decode_phase1(decoders[i], image_data[i].data(), image_data[i].size(), nullptr);
+                rc = gpujpeg_decoder_decode_phase1(decoders[i], image_data[i].data(), image_data[i].size(), nullptr,
+                                                   nullptr);
             }
 
             assert(rc == 0);
@@ -116,7 +118,7 @@ int warmup(const char* input, gpujpeg_decoder* decoder, uint8_t* image, int imag
     for (int i = 0; i < max_iter; i++) {
         GPUJPEG_TIMER_START();
         // Decode image
-        if ((rc = gpujpeg_decoder_decode_phase1(decoder, image, image_size, jpeg_header)) != 0) {
+        if ((rc = gpujpeg_decoder_decode_phase1(decoder, image, image_size, jpeg_header, nullptr)) != 0) {
             fprintf(stderr, "Failed to decode image [%s]!\n", input);
             return -1;
         }
@@ -186,7 +188,7 @@ int RPC_test(const string& fname, uint8_t* image, size_t len) {
     struct gpujpeg_decoder_output decoder_output;
     gpujpeg_decoder_output_set_default(&decoder_output);
 
-    if ((rc = gpujpeg_decoder_decode_phase1(decoder1, nullptr, 0, &header)) != 0) {
+    if ((rc = gpujpeg_decoder_decode_phase1(decoder1, nullptr, 0, &header, nullptr)) != 0) {
         fprintf(stderr, "Failed to decode image !\n");
         return -1;
     }
@@ -209,7 +211,7 @@ int test_one_image(const char* input, gpujpeg_decoder* decoder, uint8_t* image, 
 
     gpujpeg_decoder_output_set_default(&decoder_output);
 
-    if ((rc = gpujpeg_decoder_decode_phase1(decoder, image, image_size, jpeg_header)) != 0) {
+    if ((rc = gpujpeg_decoder_decode_phase1(decoder, image, image_size, jpeg_header, nullptr)) != 0) {
         fprintf(stderr, "Failed to decode image [%s]!\n", input);
         return -1;
     }
@@ -218,8 +220,51 @@ int test_one_image(const char* input, gpujpeg_decoder* decoder, uint8_t* image, 
         fprintf(stderr, "Failed to decode image [%s]!\n", input);
         return -1;
     }
+
     exit(0);
     return 0;
+}
+
+void test_fast_binary(const string& fname, uint8_t* image, size_t len) {
+    jcache::JPEGCacheClient jcacheclient("127.0.0.1", 8090);
+    int ret = jcacheclient.put("image1.jpeg", image, len);
+    assert(ret == 0);
+    printf("put image ok\n");
+
+    auto header = jcacheclient.get("image1.jpeg");
+    string jpeg_header_raw = jcacheclient.get_serialized_header("image1.jpeg");
+    auto header_ptr = jcache::deserialization_header(jpeg_header_raw);
+    restore_block_offset_from_compact(header_ptr);
+    gpujpeg_decoder* decoder1 = gpujpeg_decoder_create(0);
+
+    void* fast_bin = gimg_reader_generate_fast_binary(decoder1, header_ptr);
+    gpujpeg_decoder_destroy(decoder1);
+    decoder1 = nullptr;
+
+    gpujpeg_decoder* decoder2 = gpujpeg_decoder_create(0);
+
+    printf("before phase1\n");
+
+    if ((rc = gpujpeg_decoder_decode_phase1(decoder2, nullptr, 0, nullptr, fast_bin)) != 0) {
+        fprintf(stderr, "Failed to decode image [%s]!\n", fname.c_str());
+    }
+
+    printf("phase1 done\n");
+
+    struct gpujpeg_decoder_output decoder_output;
+
+    gpujpeg_decoder_output_set_default(&decoder_output);
+    if ((rc = gpujpeg_decoder_decode_phase2(decoder2, &decoder_output)) != 0) {
+        fprintf(stderr, "Failed to decode image [%s]!\n", fname.c_str());
+    }
+    printf("phase1 done\n");
+
+    printf("width: %d, height: %d\n", decoder2->coder.param_image.width, decoder2->coder.param_image.height);
+    dumpImg(decoder_output.data, decoder_output.data_size, decoder2->coder.param_image.width,
+            decoder2->coder.param_image.height);
+
+    gpujpeg_decoder_destroy(decoder2);
+    exit(0);
 }
 
 int main(int argc, char** argv) {
@@ -252,6 +297,8 @@ int main(int argc, char** argv) {
         fprintf(stderr, "Failed to load image [%s]!\n", input);
         return -1;
     }
+
+    test_fast_binary(input, image, image_size);
 
     // return RPC_test(input, image, image_size);
 

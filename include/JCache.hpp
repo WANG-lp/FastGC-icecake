@@ -25,7 +25,6 @@ using namespace ::JPEGCache;
 
 namespace jcache {
 class JPEGCacheHandler;
-
 JPEG_HEADER *deserialization_header(const string &str);
 
 class JCache {

@@ -108,6 +108,8 @@ int gpujpeg_reader_destroy(struct gpujpeg_reader* reader);
 int gpujpeg_reader_read_image(struct gpujpeg_decoder* decoder, uint8_t* image, int image_size);
 
 int gpujpeg_reader_read_image_with_header(struct gpujpeg_decoder* decoder, void* jpeg_header);
+int gimg_reader_read_image_with_fast_binary(struct gpujpeg_decoder* decoder, void* jpeg_fast_bin);
+void* gimg_reader_generate_fast_binary(struct gpujpeg_decoder* decoder, void* jpeg_header);
 
 /**
  * Read image info from JPEG file
