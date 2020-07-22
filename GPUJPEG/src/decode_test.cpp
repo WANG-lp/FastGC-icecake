@@ -18,8 +18,6 @@
 using std::string;
 using std::vector;
 
-jcache::JCache jc;
-
 int rc;
 void dumpImg(const uint8_t* data, size_t data_size, int width, int height) {
     vector<uint8_t> chanR, chanG, chanB;
@@ -262,18 +260,24 @@ int main(int argc, char** argv) {
 
     // warmup(input, decoder1, image, image_size, nullptr, 1);
     printf("\n");
-    assert(jc.putJPEG(input));
-    void* jpeg_header_raw = jc.getHeader(input);
-    assert(jpeg_header_raw != nullptr);
+    jcache::JPEGCacheClient jcacheclient("127.0.0.1", 8090);
+    int ret = jcacheclient.put("image1.jpeg", image, image_size);
+    assert(ret == 0);
+    printf("put image ok\n");
+    auto header = jcacheclient.get("image1.jpeg");
+    string jpeg_header_raw = jcacheclient.get_serialized_header("image1.jpeg");
+    auto header_ptr = jcache::deserialization_header(jpeg_header_raw);
+
+    assert(header_ptr != nullptr);
     // void* jpeg_header_croped = jc.getHeaderwithCrop(input, 0, 0, 320, 320);
     // void* jpeg_header_croped2 = jc.getHeaderwithCrop(input, 0, 0, 224, 224);
-    restore_block_offset_from_compact(jpeg_header_raw);
+    restore_block_offset_from_compact(header_ptr);
     // restore_block_offset_from_compact(jpeg_header_croped);
     // restore_block_offset_from_compact(jpeg_header_croped2);
 
     // test_one_image(input, decoder1, image, image_size, jpeg_header_raw);
 
-    warmup(input, decoder1, image, image_size, jpeg_header_raw, 1);
+    warmup(input, decoder1, image, image_size, header_ptr, 1);
     // warmup(input, decoder1, image, image_size, jpeg_header_croped, 1);
     // warmup(input, decoder1, image, image_size, jpeg_header_croped2, 1);
     // // return 0;
@@ -299,9 +303,9 @@ int main(int argc, char** argv) {
 
     // warmup(input, decoder1, image, image_size, jpeg_header_croped, 1000);
 
-    decode(image_data, thread_num, max_iter, nullptr);
+    // decode(image_data, thread_num, max_iter, nullptr);
 
-    decode(image_data, thread_num, max_iter, jpeg_header_raw);
+    decode(image_data, thread_num, max_iter, header_ptr);
 
     // Destroy image
     gpujpeg_image_destroy(image);

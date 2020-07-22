@@ -174,7 +174,7 @@ void decode_decoupled(vector<uint8_t> data, int batch_size) {
 
         // cudaEventRecord(start, params.stream);
         // checkCudaErrors(nvjpegDecodeJpegTransferToDevice(params.nvjpeg_handle, decoder_t, params.nvjpeg_state,
-        //  jpeg_stream, params.stream));
+        //                                                  jpeg_stream, params.stream));
         // cudaEventRecord(stop, params.stream);
         // cudaEventSynchronize(stop);
         // cudaEventElapsedTime(&milliseconds, start, stop);
@@ -182,7 +182,7 @@ void decode_decoupled(vector<uint8_t> data, int batch_size) {
 
         // cudaEventRecord(start, params.stream);
         // checkCudaErrors(
-        // nvjpegDecodeJpegDevice(params.nvjpeg_handle, decoder_t, params.nvjpeg_state, &out_img_t, params.stream));
+        //     nvjpegDecodeJpegDevice(params.nvjpeg_handle, decoder_t, params.nvjpeg_state, &out_img_t, params.stream));
     }
     cudaEventRecord(stop, params.stream);
     cudaEventSynchronize(stop);

@@ -26,11 +26,11 @@ using namespace ::JPEGCache;
 namespace jcache {
 class JPEGCacheHandler;
 
-JPEG_HEADER* deserialization_header(const string& str);
+JPEG_HEADER *deserialization_header(const string &str);
 
 class JCache {
    public:
-    JCache(int port = 8090);
+    explicit JCache(int port);
     ~JCache();
     void set_parameters(int seed, float s1, float s2, float r1, float r2);
     bool putJPEG(const uint8_t *image_raw, size_t len, const string &filename);

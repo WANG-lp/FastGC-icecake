@@ -78,7 +78,9 @@ JCache::JCache(int port) {
     thread_count = 0;
 };
 JCache::~JCache() {
-    server_handle->stop();
+    if (server_handle) {
+        server_handle->stop();
+    }
     if (isStarted) {
         server_tid.join();
     }
@@ -123,11 +125,13 @@ bool JCache::putJPEG(const vector<uint8_t> &image, const string &filename) {
 }
 bool JCache::putJPEG(const string &filename) {
     jpeg_dec::JPEGDec dec(filename);
+    printf("put\n");
     dec.Parser();
     auto header = dec.get_header();
     if (header.status != 1) {
         return false;
     }
+    printf("%d\n", header.blocks_num);
     auto img_data = dec.get_image_data();
     map_[filename] = {header, string(img_data.begin(), img_data.end())};
     return true;
