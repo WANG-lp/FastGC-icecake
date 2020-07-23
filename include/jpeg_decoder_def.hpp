@@ -28,8 +28,10 @@ struct JPEG_HEADER {
 
 struct JPEG_FAST_BINARY {
     vector<vector<uint16_t>> dqt_table;
-    vector<gpujpeg_table_huffman_decoder> dht_table_dc;
-    vector<gpujpeg_table_huffman_decoder> dht_table_ac;
+    gpujpeg_table_huffman_decoder dht_dc0;
+    gpujpeg_table_huffman_decoder dht_dc1;
+    gpujpeg_table_huffman_decoder dht_ac0;
+    gpujpeg_table_huffman_decoder dht_ac1;
 
     int height, weidth;
     uint8_t comp_count;

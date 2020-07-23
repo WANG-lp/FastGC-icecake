@@ -351,12 +351,11 @@ void set_jpeg_fast_binary(void *jpeg_header_raw, void *fast_binary, void *dec) {
         std::memcpy(fast_bin->dqt_table[id].data(), decoder->table_quantization[id].table, sizeof(uint16_t) * 64);
     }
 
-    fast_bin->dht_table_ac.resize(2);
-    fast_bin->dht_table_dc.resize(2);
-    for (int id = 0; id < fast_bin->dht_table_ac.size(); id++) {
-        fast_bin->dht_table_dc[id] = decoder->table_huffman[id][0];
-        fast_bin->dht_table_ac[id] = decoder->table_huffman[id][1];
-    }
+    std::memcpy(&(fast_bin->dht_dc0), &(decoder->table_huffman[0][0]), sizeof(gpujpeg_table_huffman_decoder));
+    std::memcpy(&(fast_bin->dht_dc1), &(decoder->table_huffman[0][1]), sizeof(gpujpeg_table_huffman_decoder));
+    std::memcpy(&(fast_bin->dht_ac0), &(decoder->table_huffman[1][0]), sizeof(gpujpeg_table_huffman_decoder));
+    std::memcpy(&(fast_bin->dht_ac1), &(decoder->table_huffman[1][1]), sizeof(gpujpeg_table_huffman_decoder));
+
     fast_bin->height = decoder->reader->param_image.height;
     fast_bin->weidth = decoder->reader->param_image.width;
     fast_bin->comp_count = decoder->reader->param_image.comp_count;
@@ -389,19 +388,9 @@ void set_jpeg_fast_binary(void *jpeg_header_raw, void *fast_binary, void *dec) {
     std::memcpy(fast_bin->compressed_data.data(), decoder->coder.data_compressed,
                 sizeof(char) * decoder->data_compressed_size);
 }
-void get_from_jpeg_fast_binary(void *fast_binary, void *dec) {
+uint8_t *get_from_jpeg_fast_binary(void *fast_binary, void *dec) {
     JPEG_FAST_BINARY *fast_bin = static_cast<JPEG_FAST_BINARY *>(fast_binary);
     struct gpujpeg_decoder *decoder = static_cast<struct gpujpeg_decoder *>(dec);
-
-    decoder->reader->param = decoder->coder.param;
-    decoder->reader->param_image = decoder->coder.param_image;
-    decoder->reader->comp_count = 0;
-    decoder->reader->scan_count = 0;
-    decoder->reader->segment_count = 0;
-    decoder->reader->data_compressed_size = 0;
-    decoder->reader->segment_info_count = 0;
-    decoder->reader->segment_info_size = 0;
-    decoder->reader->block_offsets = NULL;
 
     for (int id = 0; id < fast_bin->dqt_table.size(); id++) {
         std::memcpy(decoder->table_quantization[id].table, fast_bin->dqt_table[id].data(), sizeof(uint16_t) * 64);
@@ -413,18 +402,18 @@ void get_from_jpeg_fast_binary(void *fast_binary, void *dec) {
         }
     }
 
-    for (int id = 0; id < fast_bin->dht_table_ac.size(); id++) {
-        decoder->table_huffman[0][id] = fast_bin->dht_table_dc[id];
-        decoder->table_huffman[1][id] = fast_bin->dht_table_ac[id];
-        struct gpujpeg_table_huffman_decoder *table = &(decoder->table_huffman[0][id]);
-        struct gpujpeg_table_huffman_decoder *d_table = decoder->d_table_huffman[0][id];
-        // Copy table to device memory
-        cudaMemcpyAsync(d_table, table, sizeof(struct gpujpeg_table_huffman_decoder), cudaMemcpyHostToDevice,
-                        *(decoder->stream));
-        table = &(decoder->table_huffman[1][id]);
-        d_table = decoder->d_table_huffman[1][id];
-        cudaMemcpyAsync(d_table, table, sizeof(struct gpujpeg_table_huffman_decoder), cudaMemcpyHostToDevice,
-                        *(decoder->stream));
+    std::memcpy(&(decoder->table_huffman[0][0]), &(fast_bin->dht_dc0), sizeof(gpujpeg_table_huffman_decoder));
+    std::memcpy(&(decoder->table_huffman[0][1]), &(fast_bin->dht_dc1), sizeof(gpujpeg_table_huffman_decoder));
+    std::memcpy(&(decoder->table_huffman[1][0]), &(fast_bin->dht_ac0), sizeof(gpujpeg_table_huffman_decoder));
+    std::memcpy(&(decoder->table_huffman[1][1]), &(fast_bin->dht_ac1), sizeof(gpujpeg_table_huffman_decoder));
+    for (int i = 0; i < 2; i++) {
+        for (int j = 0; j < 2; j++) {
+            struct gpujpeg_table_huffman_decoder *table = &(decoder->table_huffman[i][j]);
+            struct gpujpeg_table_huffman_decoder *d_table = decoder->d_table_huffman[i][j];
+            // Copy table to device memory
+            cudaMemcpyAsync(d_table, table, sizeof(struct gpujpeg_table_huffman_decoder), cudaMemcpyHostToDevice,
+                            *(decoder->stream));
+        }
     }
 
     decoder->reader->param_image.height = fast_bin->height;
@@ -441,21 +430,11 @@ void get_from_jpeg_fast_binary(void *fast_binary, void *dec) {
     decoder->reader->block_offsets = fast_bin->blockpos.data();
     decoder->reader->block_count = fast_bin->blocks_num;
 
-    decoder->reader->param.interleaved = 1;
-    printf("2\n");
-
     for (int ch = 0; ch < fast_bin->comp_count; ch++) {
         decoder->comp_table_huffman_map[ch][1] = fast_bin->comp_ac_table_id[ch];
         decoder->comp_table_huffman_map[ch][0] = fast_bin->comp_dc_table_id[ch];
     }
 
-    printf("3\n");
-
-    decoder->reader->scan[0].segment_index = decoder->reader->segment_count;
-    decoder->reader->scan[0].segment_count;
-
-    decoder->coder.data_compressed = fast_bin->compressed_data.data();
-    decoder->reader->segment_count = 1;
-    decoder->segment_count = fast_bin->scan_segment_count;
-    decoder->data_compressed_size = fast_bin->compressed_data.size();
+    decoder->reader->data_compressed_size = fast_bin->compressed_data.size();
+    return fast_bin->compressed_data.data();
 }

@@ -902,19 +902,55 @@ void* gimg_reader_generate_fast_binary(struct gpujpeg_decoder* decoder, void* jp
 }
 
 int gimg_reader_read_image_with_fast_binary(struct gpujpeg_decoder* decoder, void* jpeg_fast_bin) {
+    assert(jpeg_fast_bin != NULL);
 
-    printf("before get\n");
+    decoder->reader->param = decoder->coder.param;
+    decoder->reader->param_image = decoder->coder.param_image;
+    decoder->reader->comp_count = 0;
+    decoder->reader->scan_count = 0;
+    decoder->reader->segment_count = 0;
+    decoder->reader->data_compressed_size = 0;
+    decoder->reader->segment_info_count = 0;
+    decoder->reader->segment_info_size = 0;
+    decoder->reader->block_offsets = NULL;
 
-    get_from_jpeg_fast_binary(jpeg_fast_bin, decoder);
-    printf("get done\n");
+    uint8_t* data = get_from_jpeg_fast_binary(jpeg_fast_bin, decoder);
 
+    decoder->reader->param.interleaved = 1;
+    // We must init decoder before data is loaded into it
     if (decoder->reader->comp_count == 0) {
         // Init decoder
         if (gpujpeg_decoder_init(decoder, &decoder->reader->param, &decoder->reader->param_image) != 0) {
             return -1;
         }
     }
-    printf("read done\n");
+
+    // Check maximum component count
+    decoder->reader->comp_count += decoder->reader->param_image.comp_count;
+
+    int scan_index = decoder->reader->scan_count;
+    struct gpujpeg_reader_scan* scan = &decoder->reader->scan[scan_index];
+    decoder->reader->scan_count++;
+    scan->segment_index = decoder->reader->segment_count;
+    scan->segment_count = 0;
+
+    struct gpujpeg_segment* segment = &decoder->coder.segment[scan->segment_index];
+    segment->scan_index = scan_index;
+    segment->scan_segment_index = scan->segment_count;
+    segment->data_compressed_index = 0;
+    scan->segment_count++;
+
+    segment->data_compressed_size = decoder->reader->data_compressed_size;
+
+    // memcpy(decoder->coder.data_compressed, sos_2nd_addr, sos_2nd_length);
+    decoder->reader->segment_count = 1;
+
+    // Set decoder parameters
+    decoder->segment_count = decoder->reader->segment_count;
+    decoder->data_compressed_size = decoder->reader->data_compressed_size;
+
+    memcpy(decoder->coder.data_compressed, data, decoder->data_compressed_size);
+
     return 0;
 }
 
@@ -983,6 +1019,7 @@ int gpujpeg_reader_read_image_with_header(struct gpujpeg_decoder* decoder, void*
     assert(comp_count == decoder->reader->param_image.comp_count);
     // printf("comp_count: %d\n", comp_count);
     decoder->reader->param.interleaved = 1;
+    printf("before: %d\n", decoder->coder.segment_count);
     // We must init decoder before data is loaded into it
     if (decoder->reader->comp_count == 0) {
         // Init decoder
@@ -990,6 +1027,8 @@ int gpujpeg_reader_read_image_with_header(struct gpujpeg_decoder* decoder, void*
             return -1;
         }
     }
+    printf("after: %d\n", decoder->coder.segment_count);
+
     // Check maximum component count
     decoder->reader->comp_count += comp_count;
     // Collect the component-spec parameters
@@ -1043,6 +1082,7 @@ int gpujpeg_reader_read_image_with_header(struct gpujpeg_decoder* decoder, void*
     image = &sos_2nd_addr;
     uint8_t* image_end = sos_2nd_addr + sos_2nd_length;
 
+    printf("seg idx: %d, scan_index: %d\n", scan->segment_index, scan_index);
     struct gpujpeg_segment* segment = &decoder->coder.segment[scan->segment_index];
     segment->scan_index = scan_index;
     segment->scan_segment_index = scan->segment_count;
