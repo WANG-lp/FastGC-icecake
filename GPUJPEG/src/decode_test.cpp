@@ -35,14 +35,14 @@ void dumpImg(const uint8_t* data, size_t data_size, int width, int height) {
     }
     writeBMP("/tmp/out.bmp", chanR.data(), chanG.data(), chanB.data(), width, height);
 }
-void decode(vector<vector<uint8_t>> image_data, int num_thread, int max_iter, void* jpeg_header) {
+void decode(vector<vector<uint8_t>> image_data, int num_thread, int max_iter, void* jpeg_header, void* fast_bin) {
     vector<gpujpeg_decoder*> decoders(image_data.size() + 4);
     vector<struct gpujpeg_decoder_output> decoder_outputs(image_data.size());
 
     for (int i = 0; i < image_data.size(); i++) {
         // decoders[i] = gpujpeg_decoder_create(NULL);
         decoders[i] =
-            gpujpeg_decoder_create_with_max_image_size(0, image_data[i].data(), image_data[i].size(), nullptr);
+            gpujpeg_decoder_create_with_max_image_size(0, image_data[i].data(), image_data[i].size(), nullptr, nullptr);
 
         assert(decoders[i] != nullptr);
         gpujpeg_decoder_output_set_default(&decoder_outputs[i]);
@@ -68,13 +68,9 @@ void decode(vector<vector<uint8_t>> image_data, int num_thread, int max_iter, vo
 #pragma omp parallel for num_threads(num_thread)
         for (int i = 0; i < image_data.size(); i++) {
             // void* jpeg_header = decoders[i % num_thread]->reader->jpeg_header_raw;
-            if (jpeg_header && get_jpeg_header_status(jpeg_header) == 1) {
-                rc = gpujpeg_decoder_decode_phase1(decoders[i], image_data[i].data(), image_data[i].size(), jpeg_header,
-                                                   nullptr);
-            } else {
-                rc = gpujpeg_decoder_decode_phase1(decoders[i], image_data[i].data(), image_data[i].size(), nullptr,
-                                                   nullptr);
-            }
+
+            rc = gpujpeg_decoder_decode_phase1(decoders[i], image_data[i].data(), image_data[i].size(), jpeg_header,
+                                               fast_bin);
 
             assert(rc == 0);
             // Decode image
@@ -242,22 +238,17 @@ void test_fast_binary(const string& fname, uint8_t* image, size_t len) {
     decoder1 = nullptr;
 
     gpujpeg_decoder* decoder2 = gpujpeg_decoder_create(0);
+    struct gpujpeg_decoder_output decoder_output;
 
-    printf("before phase1\n");
+    gpujpeg_decoder_output_set_default(&decoder_output);
 
     if ((rc = gpujpeg_decoder_decode_phase1(decoder2, nullptr, 0, nullptr, fast_bin)) != 0) {
         fprintf(stderr, "Failed to decode image [%s]!\n", fname.c_str());
     }
 
-    printf("phase1 done\n");
-
-    struct gpujpeg_decoder_output decoder_output;
-
-    gpujpeg_decoder_output_set_default(&decoder_output);
     if ((rc = gpujpeg_decoder_decode_phase2(decoder2, &decoder_output)) != 0) {
         fprintf(stderr, "Failed to decode image [%s]!\n", fname.c_str());
     }
-    printf("phase1 done\n");
 
     printf("width: %d, height: %d\n", decoder2->coder.param_image.width, decoder2->coder.param_image.height);
     dumpImg(decoder_output.data, decoder_output.data_size, decoder2->coder.param_image.width,
@@ -298,7 +289,7 @@ int main(int argc, char** argv) {
         return -1;
     }
 
-    test_fast_binary(input, image, image_size);
+    // test_fast_binary(input, image, image_size);
 
     // return RPC_test(input, image, image_size);
 
@@ -324,7 +315,7 @@ int main(int argc, char** argv) {
 
     // test_one_image(input, decoder1, image, image_size, jpeg_header_raw);
 
-    warmup(input, decoder1, image, image_size, header_ptr, 1);
+    // warmup(input, decoder1, image, image_size, header_ptr, 1);
     // warmup(input, decoder1, image, image_size, jpeg_header_croped, 1);
     // warmup(input, decoder1, image, image_size, jpeg_header_croped2, 1);
     // // return 0;
@@ -351,8 +342,12 @@ int main(int argc, char** argv) {
     // warmup(input, decoder1, image, image_size, jpeg_header_croped, 1000);
 
     // decode(image_data, thread_num, max_iter, nullptr);
+    gpujpeg_decoder* decoder_tmp = gpujpeg_decoder_create(0);
+    void* fast_bin = gimg_reader_generate_fast_binary(decoder_tmp, header_ptr);
 
-    decode(image_data, thread_num, max_iter, header_ptr);
+    // decode(image_data, thread_num, max_iter, header_ptr, nullptr);
+
+    decode(image_data, thread_num, max_iter, nullptr, fast_bin);
 
     // Destroy image
     gpujpeg_image_destroy(image);

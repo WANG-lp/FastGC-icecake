@@ -359,7 +359,6 @@ void set_jpeg_fast_binary(void *jpeg_header_raw, void *fast_binary, void *dec) {
     fast_bin->height = decoder->reader->param_image.height;
     fast_bin->weidth = decoder->reader->param_image.width;
     fast_bin->comp_count = decoder->reader->param_image.comp_count;
-    printf("set comp count: %d\n", fast_bin->comp_count);
     fast_bin->sampling_factor_h.resize(fast_bin->comp_count);
     fast_bin->sampling_factor_v.resize(fast_bin->comp_count);
     fast_bin->quant_map.resize(fast_bin->comp_count);
@@ -370,8 +369,7 @@ void set_jpeg_fast_binary(void *jpeg_header_raw, void *fast_binary, void *dec) {
         fast_bin->quant_map[ch] = decoder->comp_table_quantization_map[ch];
         fast_bin->sampling_factor_h[ch] = decoder->reader->param.sampling_factor[ch].horizontal;
         fast_bin->sampling_factor_v[ch] = decoder->reader->param.sampling_factor[ch].vertical;
-        printf("ch: %d, factor: %d,%d\n", ch, decoder->reader->param.sampling_factor[ch].horizontal,
-               decoder->reader->param.sampling_factor[ch].vertical);
+
     }
 
     fast_bin->blocks_num = decoder->reader->block_count;
@@ -419,7 +417,6 @@ uint8_t *get_from_jpeg_fast_binary(void *fast_binary, void *dec) {
     decoder->reader->param_image.height = fast_bin->height;
     decoder->reader->param_image.width = fast_bin->weidth;
     decoder->reader->param_image.comp_count = fast_bin->comp_count;
-    printf("comp count: %d\n", decoder->reader->param_image.comp_count);
     for (int ch = 0; ch < fast_bin->comp_count; ch++) {
         decoder->reader->param.sampling_factor[ch].horizontal = fast_bin->sampling_factor_h[ch];
         decoder->reader->param.sampling_factor[ch].vertical = fast_bin->sampling_factor_v[ch];

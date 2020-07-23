@@ -148,8 +148,8 @@ struct gpujpeg_decoder* gpujpeg_decoder_create(cudaStream_t* stream) {
 
 GPUJPEG_API struct gpujpeg_decoder* gpujpeg_decoder_create_with_max_image_size(cudaStream_t* stream,
                                                                                uint8_t* image_data,
-                                                                               size_t image_data_len,
-                                                                               void* jpeg_header) {
+                                                                               size_t image_data_len, void* jpeg_header,
+                                                                               void* fast_bin) {
     struct gpujpeg_decoder* decoder = gpujpeg_decoder_create(stream);
     if (decoder == NULL) {
         return NULL;
@@ -158,7 +158,7 @@ GPUJPEG_API struct gpujpeg_decoder* gpujpeg_decoder_create_with_max_image_size(c
 
     // TODO: replace init with a dummy param_image
     int rc;
-    rc = gpujpeg_decoder_decode_phase1(decoder, image_data, image_data_len, jpeg_header, NULL);
+    rc = gpujpeg_decoder_decode_phase1(decoder, image_data, image_data_len, jpeg_header, fast_bin);
     if (rc) {
         gpujpeg_decoder_destroy(decoder);
         return NULL;

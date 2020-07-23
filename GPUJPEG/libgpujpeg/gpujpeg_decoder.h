@@ -137,8 +137,8 @@ GPUJPEG_API void gpujpeg_decoder_output_set_custom_cuda(struct gpujpeg_decoder_o
 GPUJPEG_API struct gpujpeg_decoder* gpujpeg_decoder_create(cudaStream_t* stream);
 GPUJPEG_API struct gpujpeg_decoder* gpujpeg_decoder_create_with_max_image_size(cudaStream_t* stream,
                                                                                uint8_t* image_data,
-                                                                               size_t image_data_len,
-                                                                               void* jpeg_header);
+                                                                               size_t image_data_len, void* jpeg_header,
+                                                                               void* fast_bin);
 /**
  * Init JPEG decoder for specific image size
  *
@@ -164,7 +164,7 @@ GPUJPEG_API int gpujpeg_decoder_decode(struct gpujpeg_decoder* decoder, uint8_t*
                                        struct gpujpeg_decoder_output* output);
 
 GPUJPEG_API int gpujpeg_decoder_decode_phase1(struct gpujpeg_decoder* decoder, uint8_t* image, int image_size,
-                                              void* jpeg_header, void *fast_bin);
+                                              void* jpeg_header, void* fast_bin);
 
 GPUJPEG_API int gpujpeg_decoder_decode_phase2(struct gpujpeg_decoder* decoder, struct gpujpeg_decoder_output* output);
 /**

@@ -889,12 +889,10 @@ int gpujpeg_reader_read_sos(struct gpujpeg_decoder* decoder, uint8_t** image, ui
     return 0;
 }
 void* gimg_reader_generate_fast_binary(struct gpujpeg_decoder* decoder, void* jpeg_header) {
-    printf("generate\n");
     if (gpujpeg_reader_read_image_with_header(decoder, jpeg_header) != 0) {
         printf("parse image with jpeg_header fail\n");
         return NULL;
     }
-    printf("generate done\n");
 
     void* fast_bin = create_jpeg_fast_binary();
     set_jpeg_fast_binary(jpeg_header, fast_bin, decoder);
@@ -994,7 +992,6 @@ int gpujpeg_reader_read_image_with_header(struct gpujpeg_decoder* decoder, void*
         printf("read_sof0 error\n");
         return -1;
     }
-    printf("with header comp: %d\n", decoder->reader->param_image.comp_count);
     // printf("comp_id: %d, %d, %d, %d\n", decoder->comp_id[0], decoder->comp_id[1], decoder->comp_id[2],
     //        decoder->comp_id[3]);
     // printf("status %d\n", get_jpeg_header_status(jpeg_header));
@@ -1019,7 +1016,6 @@ int gpujpeg_reader_read_image_with_header(struct gpujpeg_decoder* decoder, void*
     assert(comp_count == decoder->reader->param_image.comp_count);
     // printf("comp_count: %d\n", comp_count);
     decoder->reader->param.interleaved = 1;
-    printf("before: %d\n", decoder->coder.segment_count);
     // We must init decoder before data is loaded into it
     if (decoder->reader->comp_count == 0) {
         // Init decoder
@@ -1027,7 +1023,6 @@ int gpujpeg_reader_read_image_with_header(struct gpujpeg_decoder* decoder, void*
             return -1;
         }
     }
-    printf("after: %d\n", decoder->coder.segment_count);
 
     // Check maximum component count
     decoder->reader->comp_count += comp_count;
@@ -1082,7 +1077,20 @@ int gpujpeg_reader_read_image_with_header(struct gpujpeg_decoder* decoder, void*
     image = &sos_2nd_addr;
     uint8_t* image_end = sos_2nd_addr + sos_2nd_length;
 
-    printf("seg idx: %d, scan_index: %d\n", scan->segment_index, scan_index);
+    uint8_t current_rst = 0XF0;
+    for (size_t off = 1; off < sos_2nd_length; off++) {
+        if (sos_2nd_addr[off - 1] == 0xFF && (sos_2nd_addr[off] >= 0xF0 && sos_2nd_addr[off] <= 0xF7)) {
+            if (sos_2nd_addr[off] != current_rst) {
+                printf("corrupted image!\n");
+                break;
+            }
+            current_rst += 1;
+            if (current_rst > 0XF7) {
+                current_rst = 0X00;
+            }
+        }
+    }
+
     struct gpujpeg_segment* segment = &decoder->coder.segment[scan->segment_index];
     segment->scan_index = scan_index;
     segment->scan_segment_index = scan->segment_count;

@@ -27,7 +27,8 @@ GPUDecoder::GPUDecoder(int thread_num, const string& init_image) {
 
     decoders.resize(thread_num, nullptr);
     for (int i = 0; i < thread_num; i++) {
-        decoders[i] = gpujpeg_decoder_create_with_max_image_size(nullptr, buffer.data(), buffer.size(), nullptr);
+        decoders[i] =
+            gpujpeg_decoder_create_with_max_image_size(nullptr, buffer.data(), buffer.size(), nullptr, nullptr);
         gpujpeg_decoder_set_output_format(decoders[i], GPUJPEG_RGB, GPUJPEG_444_U8_P012);
     }
 }
