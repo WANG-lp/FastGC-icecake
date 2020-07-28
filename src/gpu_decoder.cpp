@@ -45,7 +45,6 @@ int GPUDecoder::do_decode(void* jpeg_header, uint8_t* out_ptr) {
     decoder_output.type = GPUJPEG_DECODER_OUTPUT_CUSTOM_CUDA_BUFFER;
     decoder_output.data = out_ptr;
     int rc = 0;
-
     if ((rc = gpujpeg_decoder_decode_phase1(decoders[which_decoder], nullptr, 0, jpeg_header, nullptr)) != 0) {
         fprintf(stderr, "Failed to decode image !\n");
         return rc;

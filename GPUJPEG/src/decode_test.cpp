@@ -40,9 +40,9 @@ void decode(vector<vector<uint8_t>> image_data, int num_thread, int max_iter, vo
     vector<struct gpujpeg_decoder_output> decoder_outputs(image_data.size());
 
     for (int i = 0; i < image_data.size(); i++) {
-        // decoders[i] = gpujpeg_decoder_create(NULL);
-        decoders[i] =
-            gpujpeg_decoder_create_with_max_image_size(0, image_data[i].data(), image_data[i].size(), nullptr, nullptr);
+        decoders[i] = gpujpeg_decoder_create(NULL);
+        // decoders[i] = gpujpeg_decoder_create_with_max_image_size(0, image_data[i].data(), image_data[i].size(),
+        //  jpeg_header, fast_bin);
 
         assert(decoders[i] != nullptr);
         gpujpeg_decoder_output_set_default(&decoder_outputs[i]);
@@ -50,7 +50,7 @@ void decode(vector<vector<uint8_t>> image_data, int num_thread, int max_iter, vo
         gpujpeg_decoder_set_output_format(decoders[i], GPUJPEG_RGB, GPUJPEG_444_U8_P012);
 
         rc = gpujpeg_decoder_decode_phase1(decoders[i], image_data[i].data(), image_data[i].size(), jpeg_header,
-                                           nullptr);
+                                           fast_bin);
         assert(rc == 0);
         // Decode image
         rc = gpujpeg_decoder_decode_phase2(decoders[i], &decoder_outputs[i]);

@@ -19,6 +19,7 @@ from random import shuffle
 
 import numpy as np
 
+MAX_ITER=0
 
 
 try:
@@ -724,9 +725,12 @@ class HybridValPipe(Pipeline):
 
 
 def main():
-    global best_prec1, args
+    global best_prec1, args, MAX_ITER
     best_prec1 = 0
     args = parse()
+
+    if os.getenv("MAX_ITER"):
+        MAX_ITER = int(os.getenv("MAX_ITER"))
 
     # test mode, use default args for sanity test
     if args.test:
@@ -941,6 +945,7 @@ def main():
 
 
 def train(train_loader, model, criterion, optimizer, epoch):
+    global MAX_ITER
     batch_time = AverageMeter()
     data_time = AverageMeter()
     losses = AverageMeter()
@@ -1038,7 +1043,8 @@ def train(train_loader, model, criterion, optimizer, epoch):
                           loss=losses, top1=top1, top5=top5))
         # if i == 500:
         #     exit(0)
-
+        if MAX_ITER>0 and  i > MAX_ITER:
+            exit(0)
         # Pop range "Body of iteration {}".format(i)
         if args.prof >= 0:
             torch.cuda.nvtx.range_pop()

@@ -74,6 +74,9 @@ struct gpujpeg_decoder {
     cudaStream_t* stream;
     cudaStream_t* allocatedStream;
 
+    void* jpeg_header;
+    void* fast_binary;
+
     // Timers
     GPUJPEG_CUSTOM_TIMER_DECLARE(def)
     GPUJPEG_CUSTOM_TIMER_DECLARE(in_gpu)

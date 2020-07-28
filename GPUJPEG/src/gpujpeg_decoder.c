@@ -143,6 +143,9 @@ struct gpujpeg_decoder* gpujpeg_decoder_create(cudaStream_t* stream) {
         return NULL;
     }
 
+    decoder->jpeg_header = NULL;
+    decoder->fast_binary = NULL;
+
     return decoder;
 }
 

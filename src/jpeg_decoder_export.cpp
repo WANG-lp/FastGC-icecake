@@ -162,10 +162,10 @@ uint8_t *get_sos_2nd(void *jpeg_header_raw, int *length) {
 
 void restore_block_offset_from_compact(void *jpeg_header_raw) {
     JPEG_HEADER *jpeg_header = static_cast<JPEG_HEADER *>(jpeg_header_raw);
-    printf("restore\n");
+    // printf("restore\n");
     assert(jpeg_header->status == 1 && jpeg_header->blocks_num > 0);
 
-    printf("%d\n", jpeg_header->blocks_num);
+    // printf("%d\n", jpeg_header->blocks_num);
 
     // restore block_offset
     jpeg_header->blockpos.resize(jpeg_header->blocks_num);
@@ -369,7 +369,6 @@ void set_jpeg_fast_binary(void *jpeg_header_raw, void *fast_binary, void *dec) {
         fast_bin->quant_map[ch] = decoder->comp_table_quantization_map[ch];
         fast_bin->sampling_factor_h[ch] = decoder->reader->param.sampling_factor[ch].horizontal;
         fast_bin->sampling_factor_v[ch] = decoder->reader->param.sampling_factor[ch].vertical;
-
     }
 
     fast_bin->blocks_num = decoder->reader->block_count;

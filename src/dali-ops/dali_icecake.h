@@ -53,6 +53,7 @@ class DaliIcecakeMixed : public dali::Operator<dali::MixedBackend> {
         // decoder = std::shared_ptr<jpeg_dec::GPUDecoder>(new jpeg_dec::GPUDecoder(batch_size_,
         // "/tmp/test_7687.jpeg"));
         decoder = std::shared_ptr<jpeg_dec::GPUDecoder>(new jpeg_dec::GPUDecoder(batch_size_));
+        headers.resize(batch_size_);
     }
 
     virtual inline ~DaliIcecakeMixed() {}
@@ -80,13 +81,16 @@ class DaliIcecakeMixed : public dali::Operator<dali::MixedBackend> {
         for (int i = 0; i < batch_size_; i++) {
             const auto &info_tensor = ws.Input<CPUBackend>(0, i);
             auto data = static_cast<const char *>(info_tensor.raw_data());
-            header_ptrs[i] =
-                std::shared_ptr<JPEG_HEADER>(jcache::deserialization_header(string(data, data + info_tensor.size())));
-            restore_block_offset_from_compact(header_ptrs[i].get());
             int c = 3;
-            output_shape[i] = {header_ptrs[i]->height, header_ptrs[i]->width, c};
+            if (!headers[i]) {
+                header_ptrs[i] = std::shared_ptr<JPEG_HEADER>(
+                    jcache::deserialization_header(string(data, data + info_tensor.size())));
+                restore_block_offset_from_compact(header_ptrs[i].get());
+                headers[i] = header_ptrs[i];
+                decoder->do_decode_phase1(i, headers[i].get());
+            }
+            output_shape[i] = {headers[i]->height, headers[i]->width, c};
             image_order[i] = std::make_pair(volume(output_shape[i]), i);
-            decoder->do_decode_phase1(i, header_ptrs[i].get());
         }
         // std::sort(image_order.begin(), image_order.end(), std::greater<std::pair<size_t, size_t>>());
 
@@ -95,7 +99,7 @@ class DaliIcecakeMixed : public dali::Operator<dali::MixedBackend> {
         output.SetLayout("HWC");
         TypeInfo type = TypeInfo::Create<uint8_t>();
         output.set_type(type);
-        // #pragma omp parallel for num_threads(num_threads_)
+// #pragma omp parallel for num_threads(num_threads_)
         for (size_t idx = 0; idx < image_order.size(); idx++) {
             auto &size_idx = image_order[idx];
             const int sample_idx = size_idx.second;
@@ -109,6 +113,7 @@ class DaliIcecakeMixed : public dali::Operator<dali::MixedBackend> {
 
    private:
     std::shared_ptr<jpeg_dec::GPUDecoder> decoder;
+    std::vector<std::shared_ptr<JPEG_HEADER>> headers;
 };
 
 }  // namespace jpegdec

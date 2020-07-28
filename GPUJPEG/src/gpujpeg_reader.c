@@ -1078,7 +1078,7 @@ int gpujpeg_reader_read_image_with_header(struct gpujpeg_decoder* decoder, void*
     uint8_t* image_end = sos_2nd_addr + sos_2nd_length;
 
     uint8_t current_rst = 0XF0;
-    for (size_t off = 1; off < sos_2nd_length; off++) {
+    for (size_t off = 2; off < sos_2nd_length; off++) {
         if (sos_2nd_addr[off - 1] == 0xFF && (sos_2nd_addr[off] >= 0xF0 && sos_2nd_addr[off] <= 0xF7)) {
             if (sos_2nd_addr[off] != current_rst) {
                 printf("corrupted image!\n");
