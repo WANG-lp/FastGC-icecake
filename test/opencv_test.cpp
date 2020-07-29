@@ -159,20 +159,19 @@ vector<cv::Mat> test_opencv_decode(const string& root_dir, const vector<string>&
     return result;
 }
 
-vector<cv::Mat> test_opencv_decode2(const vector<vector<uchar>> img_buffs, size_t bench_num) {
-    size_t bench_images_num = bench_num;
-
-    vector<cv::Mat> result;
-    result.resize(bench_num);
+vector<cv::Mat> test_opencv_decode2(char* fname, size_t batch_size) {
 
     size_t t_height = 0;
     size_t t_width = 0;
     size_t total_matrix_size = 0;
 
+    vector<cv::Mat> result;
+    result.resize(batch_size);
+
     auto start_t = get_wall_time();
-#pragma omp parallel for reduction(+ : t_height) reduction(+ : t_width) reduction(+ : total_matrix_size) num_threads(16)
-    for (int i = 0; i < bench_images_num; i++) {
-        result[i] = cv::imdecode(img_buffs[i], cv::ImreadModes::IMREAD_COLOR);
+#pragma omp parallel for reduction(+ : t_height) reduction(+ : t_width) reduction(+ : total_matrix_size) num_threads(4)
+    for (int i = 0; i < batch_size; i++) {
+        result[i] = cv::imread(fname, cv::ImreadModes::IMREAD_COLOR);
         t_height += result[i].rows;
         t_width += result[i].cols;
         // break;
@@ -186,40 +185,15 @@ vector<cv::Mat> test_opencv_decode2(const vector<vector<uchar>> img_buffs, size_
     spdlog::info("height: {}, width:{}", t_height, t_width);
     spdlog::info("total matrix size: {}", total_matrix_size);
     spdlog::info("time: {}s", time);
-    double time_per_image = time / bench_images_num;
+    double time_per_image = time / batch_size;
     spdlog::info("time per image: {}", time_per_image);
-    spdlog::info("speed: {} images/second", bench_images_num / time);
+    spdlog::info("speed: {} images/second", batch_size / time);
     return result;
 }
 
 int main(int argc, char** argv) {
     char* imagelist = argv[1];
-    char* croppedlist = argv[2];
-
-    size_t benched_num = std::atoi(argv[3]);
-
-    vector<string> fnames;
-    std::ifstream infile(imagelist);
-    std::string line;
-    while (std::getline(infile, line)) {
-        fnames.push_back(line);
-    }
-    spdlog::info("total file: {}", fnames.size());
-    if (benched_num == 0) {
-        benched_num = fnames.size();
-    }
-
-    vector<string> fnames_cropped;
-    std::ifstream c_infile(croppedlist);
-    while (std::getline(c_infile, line)) {
-        fnames_cropped.push_back(line);
-    }
-    spdlog::info("total file: {}", fnames_cropped.size());
-
-    auto file_raw = test_file_read("/mnt/nvme-ssd/lipeng/imagenet/", fnames, benched_num);
-    auto decoded_images = test_opencv_decode2(file_raw, benched_num);
-    auto croped_imgs = test_opencv_crop(decoded_images, benched_num);
-    auto croped_raw = test_opencv_to_image(".jpeg", croped_imgs, benched_num);
-    test_opencv_decode2(croped_raw, benched_num);
+    int batch_size = atoi(argv[2]);
+    test_opencv_decode2(argv[1], batch_size);
     return 0;
 }

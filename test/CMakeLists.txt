@@ -22,8 +22,9 @@ add_executable(rofs rofs.cpp)
 target_compile_options(rofs PRIVATE $<$<COMPILE_LANGUAGE:CXX>:-O2 -D_GNU_SOURCE -D_FILE_OFFSET_BITS=64>)
 target_link_libraries(rofs ${FUSE_LIBRARIES})
 
-#add_executable(opencv_test opencv_test.cpp)
-#target_link_libraries(opencv_test icecake_c OpenMP::OpenMP_CXX)
+find_package( OpenCV REQUIRED )
+add_executable(opencv_test opencv_test.cpp)
+target_link_libraries(opencv_test  OpenMP::OpenMP_CXX ${OpenCV_LIBS})
 
 
 add_executable(test_jpegdec test_jpeg_decoder.cpp)

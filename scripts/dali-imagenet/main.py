@@ -984,24 +984,24 @@ def train(train_loader, model, criterion, optimizer, epoch):
             torch.cuda.nvtx.range_pop()
         loss = criterion(output, target)
 
-        # compute gradient and do SGD step
-        optimizer.zero_grad()
+        # # compute gradient and do SGD step
+        # optimizer.zero_grad()
 
-        if args.prof >= 0:
-            torch.cuda.nvtx.range_push("backward")
-        if args.opt_level is not None:
-            with amp.scale_loss(loss, optimizer) as scaled_loss:
-                scaled_loss.backward()
-        else:
-            loss.backward()
-        if args.prof >= 0:
-            torch.cuda.nvtx.range_pop()
+        # if args.prof >= 0:
+        #     torch.cuda.nvtx.range_push("backward")
+        # if args.opt_level is not None:
+        #     with amp.scale_loss(loss, optimizer) as scaled_loss:
+        #         scaled_loss.backward()
+        # else:
+        #     loss.backward()
+        # if args.prof >= 0:
+        #     torch.cuda.nvtx.range_pop()
 
-        if args.prof >= 0:
-            torch.cuda.nvtx.range_push("optimizer.step()")
-        optimizer.step()
-        if args.prof >= 0:
-            torch.cuda.nvtx.range_pop()
+        # if args.prof >= 0:
+        #     torch.cuda.nvtx.range_push("optimizer.step()")
+        # optimizer.step()
+        # if args.prof >= 0:
+        #     torch.cuda.nvtx.range_pop()
 
         torch.cuda.synchronize()
         batch_time.update(time.time() - end)
