@@ -255,6 +255,7 @@ class JCacheCropIter(object):
         else:
             print("no need to put file!!!!")
         self.crop = crop
+        self.cache = None
 
     def __iter__(self):
         self.i = 0
@@ -272,19 +273,19 @@ class JCacheCropIter(object):
             jpeg_filename = self.files[self.i % len(self.files)]
             # buff = np.frombuffer(self.jc.get_serialized_header_random_crop(
             # jpeg_filename), dtype=np.uint8)
-            buff = None
-            if self.ori:
-                buff = np.frombuffer(self.jc.get_raw_file(
-                    jpeg_filename), dtype=np.uint8)
-            else:
-                if self.crop:
-                    buff = np.frombuffer(self.jc.get_serialized_header_ROI(
-                        jpeg_filename, 0, 0, 224, 224), dtype=np.uint8)
-                else:
-                    buff = np.frombuffer(self.jc.get_serialized_header(
+            if self.cache is None:
+                if self.ori:
+                    self.cache = np.frombuffer(self.jc.get_raw_file(
                         jpeg_filename), dtype=np.uint8)
+                else:
+                    if self.crop:
+                        self.cache = np.frombuffer(self.jc.get_serialized_header_ROI(
+                            jpeg_filename, 0, 0, 224, 224), dtype=np.uint8)
+                    else:
+                        self.cache = np.frombuffer(self.jc.get_serialized_header(
+                            jpeg_filename), dtype=np.uint8)
 
-            batch.append(buff)
+            batch.append(self.cache)
             labels.append(np.array([label], dtype=np.uint8))
             self.i = (self.i + 1) % self.n
         return (batch, labels)
